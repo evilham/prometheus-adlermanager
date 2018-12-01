@@ -49,11 +49,11 @@ def web_root(sites_manager):
         except:
             return resource.ErrorPage(400, 'Bad cat',
                                       '<a href="http://http.cat/400">http://http.cat/400</a>')
-        if host not in sites_manager.sites:
+        if host not in sites_manager.site_managers:
             return resource.ErrorPage(404, 'Gone cat',
                                         '<a href="http://http.cat/404">http://http.cat/404</a>')
         try:
-            site = sites_manager.get_site(host)
+            site = sites_manager.site_managers[host]
         except Exception as ex:
             log.failure('sad cat')
             return resource.ErrorPage(500, 'Sad cat',
@@ -63,7 +63,7 @@ def web_root(sites_manager):
         templates = get_jinja_env(site_path)
         template = templates.get_template("template.j2")
 
-        return template.render(**site)
+        return template.render(site=site)
 
     @app.route('/api/v1/alerts', methods=["POST"])
     def alert_handler(request):

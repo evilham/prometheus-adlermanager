@@ -13,13 +13,13 @@ class SitesManager(object):
 
     def __init__(self):
         self.sites_dir = FilePath(Config.data_dir).child('sites')
-        self.site_managers = [
-            SiteManager(self.sites_dir.child(site))
+        self.site_managers = {
+            site: SiteManager(self.sites_dir.child(site))
             for site in self.load_sites()
-        ]
+        }
         self.tokens = {
             token: manager
-            for manager in self.site_managers
+            for manager in self.site_managers.values()
             for token in manager.tokens
         }
 
