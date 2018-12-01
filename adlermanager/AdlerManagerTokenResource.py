@@ -28,7 +28,7 @@ class AdlerManagerTokenResource(TokenResource):
         Pass Alerts along if Authorization Header matched.
 
         @param token_data: The object associated with the passed token.
-        @type  L{adlermanager.StatusSite}
+        @type  L{adlermanager.SiteManager}
 
         @param request: The request object associated to this request.
         @type  L{twisted.web.http.Request}
@@ -39,6 +39,8 @@ class AdlerManagerTokenResource(TokenResource):
         except:
             return False
 
-        self.site_manager.update_site(token_data.site, alert_data)
+        site = token_data
+
+        site.process_alerts(token_data.site, alert_data)
         print(alert_data)  # TODO: Remove
         return True
