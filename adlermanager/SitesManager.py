@@ -10,10 +10,10 @@ from twisted.python.filepath import FilePath
 
 class SitesManager(object):
     def __init__(self):
-        self.sites_dir = FilePath(data_dir).child('sites')
-        self.sites, self.tokens = self.load_sites_data(Config.data_dir)
+        self.sites_dir = FilePath(Config.data_dir).child('sites')
+        self.sites, self.tokens = self.load_sites_data()
         self.incident_managers = {
-            site: IncidentManager(sites_dir.child(site).child('incidents'))
+            site: IncidentManager(self.sites_dir.child(site).child('incidents'))
             for site in self.sites
         }
 
@@ -22,7 +22,7 @@ class SitesManager(object):
                      incident_manager=self.incident_managers[site],
                      last_updated=self.get_last_updated(site))
 
-    def load_sites_data(self, data_dir):
+    def load_sites_data(self):
         sites  = {}
         tokens = {}
         for site_dir in self.sites_dir.children():
