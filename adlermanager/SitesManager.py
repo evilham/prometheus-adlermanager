@@ -52,7 +52,7 @@ class SiteManager(object):
     def load_tokens(self):
         tokens_file = self.path.child('tokens.txt')
         if tokens_file.exists():
-            with tokens_file.open('r') as f:
+            with open(tokens_file.path, 'r') as f:
                 self.tokens = [line.strip() for line in f]
         if not self.tokens:
             log.warn('Site {}: No tokens exist, '
