@@ -1,0 +1,4 @@
+TODO:
+
+- [ ] production build: like https://github.com/rtfeldman/elm-spa-example
+- [ ] think about server-side rendering
