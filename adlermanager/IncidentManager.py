@@ -35,4 +35,5 @@ class IncidentManager(object):
             alert_file.write(json.dumps(alert))
 
     def get_last_incidents(self, count=5):
-        raise NotImplementedError  # TODO
+        if not self.incidents_dir.exists(): return []
+        dirs = sorted(self.incidents_dir.listdir(), reverse=True)[:count]
