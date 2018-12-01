@@ -63,7 +63,6 @@ def web_root(sites_manager):
         templates = get_jinja_env(site_path)
         template = templates.get_template("template.j2")
 
-        # TODO: Get and use alert data
         return template.render(**site)
 
     @app.route('/api/v1/alerts', methods=["POST"])
