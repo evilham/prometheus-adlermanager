@@ -13,6 +13,8 @@ class SitesManager(object):
         sites  = {}
         tokens = {}
         sites_dir = FilePath(data_dir).child('sites')
+        if not sites_dir.isdir():
+            sites_dir.createDirectory()
         for site_dir in sites_dir.children():
             if not site_dir.isdir(): continue
             site = site_dir.basename()

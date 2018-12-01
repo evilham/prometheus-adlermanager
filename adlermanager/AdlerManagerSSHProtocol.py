@@ -6,7 +6,7 @@ from .Config import Config
 
 
 class AdlerManagerSSHProtocol(SSHSimpleProtocol):
-    site_manager = None
+    sites_manager = None
 
     def __init__(self, user):
         """
@@ -37,7 +37,7 @@ class AdlerManagerSSHProtocol(SSHSimpleProtocol):
             self.terminal.nextLine()
             return
 
-        token = self.site_manager.add_token(token_id, )
+        token = self.sites_manager.add_token(token_id, )
         self.terminal.write('Your new Token is: {}'.format(token))
         self.terminal.nextLine()
 

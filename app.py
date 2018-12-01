@@ -6,6 +6,7 @@ from twisted.internet import reactor, endpoints
 from twisted.application import service, strports
 from twisted.application.internet import ClientService
 from twisted.web import server
+from twisted.python.filepath import FilePath
 
 # Add current dir to path. Ugly but it works.
 import sys
@@ -17,13 +18,16 @@ from adlermanager import AdlerManagerTokenResource
 from adlermanager import conch_helper, AdlerManagerSSHProtocol
 
 
+if not FilePath(Config.data_dir).isdir():
+    FilePath(Config.data_dir).createDirectory()
+
 application = service.Application('AdlerManager')
 serv_collection = service.IServiceCollection(application)
 
 # TokenResource
 sites_manager = SitesManager()
 
-resource = AdlerManagerTokenResource(site_manager)
+resource = AdlerManagerTokenResource(sites_manager)
 site = server.Site(resource)
 i = strports.service(Config.web_endpoint, site)
 i.setServiceParent(serv_collection)
@@ -31,7 +35,7 @@ i.setServiceParent(serv_collection)
 # Set up SSH config service
 
 # TODO: Make this more decent
-AdlerManagerSSHProtocol.site_manager = site_manager
+AdlerManagerSSHProtocol.site_manager = sites_manager
 
 i = conch_helper(
     Config.ssh_endpoint,
