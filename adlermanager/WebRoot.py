@@ -45,7 +45,7 @@ def web_root(sites_manager):
         try:
             host = request.getRequestHostname().decode('utf-8')
             print(host)
-            site = sites_manager.sites[host]
+            site = sites_manager.get_site(host)
         except:
             return resource.ErrorPage(400, 'Bad cat', '<a href="http://http.cat/400">http://http.cat/400</a>')
 

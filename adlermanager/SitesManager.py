@@ -34,7 +34,7 @@ class SitesManager(object):
             try:
                 with site_dir.child('tokens.txt').open('r') as f:
                     for line in f:
-                        tokens[t.strip()] = site
+                        tokens[line.strip()] = site
             except FileNotFoundError:
                 pass  # no tokens, whatever
         return sites, tokens
