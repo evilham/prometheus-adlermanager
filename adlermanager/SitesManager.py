@@ -1,64 +1,98 @@
 import attr
-import rfc3339
-from datetime import datetime, timezone
-import dateutil.parser
-from munch    import Munch
+from munch                   import Munch
+from twisted.python.filepath import FilePath
+from twisted.logger          import Logger
 
 from .Config          import Config
-from .IncidentManager import IncidentManager
+from .IncidentManager import IncidentManager, Severity
 
-from twisted.python.filepath import FilePath
+from .utils  import ensure_dirs, TimestampFile, as_list
 
 class SitesManager(object):
+    log = Logger()
+
     def __init__(self):
         self.sites_dir = FilePath(Config.data_dir).child('sites')
-        self.sites, self.tokens = self.load_sites_data()
-        self.incident_managers = {
-            site: IncidentManager(self.sites_dir.child(site).child('incidents'))
-            for site in self.sites
+        self.site_managers = [
+            SiteManager(self.sites_dir.child(site))
+            for site in self.load_sites()
+        ]
+        self.tokens = {
+            token: manager
+            for manager in self.site_managers
+            for token in manager.tokens
         }
 
-    def get_site(self, site):
-        return Munch(definition=self.sites[site],
-                     incidents=self.incident_managers[site].get_last_incidents(),
-                     last_updated=self.get_last_updated(site))
-
-    def load_sites_data(self):
-        sites  = {}
-        tokens = {}
+    @as_list
+    def load_sites(self):
         for site_dir in self.sites_dir.children():
             if not site_dir.isdir(): continue
-            site = site_dir.basename()
-            with site_dir.child('site.yml').open('r') as f:
-                sites[site] = Munch.fromYAML(f.read())
-            # TODO this only reads the token on startup, fix it
-            try:
-                with site_dir.child('tokens.txt').open('r') as f:
-                    for line in f:
-                        tokens[line.strip()] = site
-            except FileNotFoundError:
-                pass  # no tokens, whatever
-        return sites, tokens
+            yield site_dir.basename()
 
-    def update_site(self, site, alert_data):
-        now = date.now(timezone.utc)
-        self.set_last_updated(self, site, now)
-        for alert in alert_data:
+
+@attr.s
+class SiteManager(object):
+    path   = attr.ib()
+    tokens = attr.ib(factory=list)
+    log    = Logger()
+
+    def __attrs_post_init__(self):
+        self.load_definition()
+        self.load_tokens()
+        self.last_updated=TimestampFile(self.path.child('last_updated.txt'))
+        self.service_managers = [
+            ServiceManager(self.path.child(s.name), s)
+            for s in self.definition.services
+        ]
+
+    def load_definition(self):
+        with self.path.child('site.yml').open('r') as f:
+            self.definition = Munch.fromYAML(f.read())
+
+    def load_tokens(self):
+        tokens_file = self.path.child('tokens.txt')
+        if tokens_file.exists():
+            with tokens_file.open('r') as f:
+                self.tokens = [line.strip() for line in f]
+        if not self.tokens:
+            log.warn('Site {}: No tokens exist, '
+                     'your site will never update'.format(self.definition.title))
+
+    def process_alerts(self, alerts):
+        self.last_updated.now()
+        for service, manager in self.definition.services.items():
+            manager.process_alerts(alerts, self.last_updated.get())
+
+    @property
+    def status(self):
+        return max((service.status for service in self.service_managers), default=Severity.OK)
+
+@attr.s
+class ServiceManager(object):
+    path             = attr.ib()
+    definition       = attr.ib()
+    current_incident = attr.ib(default=None)
+    past_incidents   = attr.ib(factory=list)
+    log = Logger()
+
+    def process_alerts(self, alerts, timestamp):
+        for alert in alerts:
             # TODO document the heartbeat awfulness somewhere
             if False: continue  # ignore the heartbeat TODO
-            self.incident_managers[site].save_alert(alert, now)
 
-    def _last_updated_file(self, site):
-        return self.sites_dir.child(site).child('last_updated.txt')
+            # TODO how exactly do alerts look?
+            if alert.labels.component in self.definition.components:
+                self.process_alert(alert, timestamp)
 
-    def set_last_updated(self, site, now):
-        with self._last_updated_file(site).open('w') as f:
-            f.write(rfc3339.format(now))
+    def process_alert(self, alert, timestamp):
+        if not self.current_incident:
+            self.current_incident = IncidentManager(timestamp)
+            self.current_incident.expired.addCallback(self.resolve_incident)
+        self.current_incident.process_alert(alert, timestamp)
 
-    def get_last_updated(self, site):
-        try:
-            with self._last_updated_file(site).open('r') as f:
-                # return datetime.fromisoformat(f.read())  # new in python 3.7 :'(
-                return dateutil.parser.parse(f.read())
-        except FileNotFoundError:
-            return None
+    def resolve_incident(self)
+
+    @property
+    def status(self):
+        # TODO
+        return max((alert.status for alert in self.current_incident.alerts), default=Severity.OK)
