@@ -1,0 +1,23 @@
+[[source]]
+verify_ssl = true
+url = "https://pypi.org/simple"
+name = "pypi"
+
+[requires]
+python_version = "3.5"
+
+[packages]
+attrs = "*"
+twisted = {version = "*", extras = ["conch"]}
+service-identity = "*"
+munch = "*"
+pyyaml = "*"
+klein = "*"
+
+[dev-packages]
+"flake8" = "*"
+jedi = "*"
+json-rpc = "*"
+autoflake = "*"
+hy = "*"
+yapf = "*"
