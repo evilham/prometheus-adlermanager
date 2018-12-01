@@ -37,4 +37,5 @@ class AdlerManagerTokenResource(TokenResource):
             return False
 
         self.site_manager.update_site(token_data.site, alert_data)
+        print(alert_data)  # TODO: Remove
         return True

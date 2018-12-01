@@ -14,9 +14,8 @@ import os
 sys.path += [ os.path.dirname(os.path.realpath(__file__)) ]
 
 from adlermanager import Config, SitesManager
-from adlermanager import AdlerManagerTokenResource
 from adlermanager import conch_helper, AdlerManagerSSHProtocol
-
+from adlermanager import web_root
 
 if not FilePath(Config.data_dir).isdir():
     FilePath(Config.data_dir).createDirectory()
@@ -27,7 +26,7 @@ serv_collection = service.IServiceCollection(application)
 # TokenResource
 sites_manager = SitesManager()
 
-resource = AdlerManagerTokenResource(sites_manager)
+resource = web_root(sites_manager)
 site = server.Site(resource)
 i = strports.service(Config.web_endpoint, site)
 i.setServiceParent(serv_collection)

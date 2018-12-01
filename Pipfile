@@ -8,11 +8,13 @@ python_version = "3"
 
 [packages]
 attrs = "*"
-twisted = {version = "*", extras = ["conch"]}
+twisted = {extras = ["conch"], version = "*"}
 service-identity = "*"
 munch = "*"
 pyyaml = "*"
 klein = "*"
+"jinja2" = "*"
+markdown = "*"
 
 [dev-packages]
 "flake8" = "*"
