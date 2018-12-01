@@ -1,7 +1,8 @@
 services:
   - name: Data Center Light
     label: dcl  # Must match the 'service' label in the Prometheus alerts
-    description: Our VM hosting: datacenterlight.ch, devuanhosting.com, ipv6onlyhosting.com
+    description: |
+      Our VM hosting: datacenterlight.ch, devuanhosting.com, ipv6onlyhosting.com
 
     components:
       - name: Storage
