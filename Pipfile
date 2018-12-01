@@ -16,6 +16,7 @@ klein = "*"
 "jinja2" = "*"
 markdown = "*"
 "rfc3339" = "*"
+python-dateutil = "*"
 
 [dev-packages]
 "flake8" = "*"

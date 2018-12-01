@@ -1,6 +1,7 @@
 import attr
 import rfc3339
 from datetime import datetime, timezone
+import dateutil
 from munch    import Munch
 
 from .Config          import Config
@@ -57,6 +58,7 @@ class SitesManager(object):
     def get_last_updated(self, site):
         try:
             with self._last_updated_file(site).open('r') as f:
-                return datetime.fromisoformat(f.read())
+                # return datetime.fromisoformat(f.read())  # new in python 3.7 :'(
+                return dateutil.parser.parse(f.read())
         except FileNotFoundError:
             return None
