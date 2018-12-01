@@ -1,6 +1,7 @@
 from klein import Klein
 from twisted.web import resource, static
 from twisted.python.filepath import FilePath
+from twisted.logger import Logger
 
 import jinja2
 import markdown
@@ -39,15 +40,19 @@ def get_jinja_env(supportDir):
 
 def web_root(sites_manager):
     app = Klein()
+    log = Logger()
 
     @app.route('/')
     def index(request):
         try:
             host = request.getRequestHostname().decode('utf-8')
-            print(host)
-            site = sites_manager.get_site(host)
         except:
             return resource.ErrorPage(400, 'Bad cat', '<a href="http://http.cat/400">http://http.cat/400</a>')
+        try:
+            site = sites_manager.get_site(host)
+        except Exception as ex:
+            log.failure('sad cat')
+            return resource.ErrorPage(500, 'Sad cat', '<a href="http://http.cat/500">http://http.cat/500</a>')
 
         site_path = FilePath(Config.data_dir).child("sites").child(host).path
         templates = get_jinja_env(site_path)

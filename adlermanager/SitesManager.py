@@ -1,7 +1,7 @@
 import attr
 import rfc3339
 from datetime import datetime, timezone
-import dateutil
+import dateutil.parser
 from munch    import Munch
 
 from .Config          import Config
