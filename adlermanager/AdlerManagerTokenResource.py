@@ -20,6 +20,9 @@ class AdlerManagerTokenResource(TokenResource):
 
         self.site_manager = site_manager
 
+    def preprocess_header(self, header):
+        return header.split(' ')[-1]
+
     def processToken(self, token_data, request):
         """
         Pass Alerts along if Authorization Header matched.

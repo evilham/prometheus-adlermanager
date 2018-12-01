@@ -28,7 +28,7 @@ class TokenResource(resource.Resource):
 
         @see: L{resource.Resource.render}.
         """
-        header = request.getHeader(self.HEADER)
+        header = self.preprocess_header(request.getHeader(self.HEADER))
         token_data = self.tokens.get(header, None)
 
         if token_data is None:
@@ -38,6 +38,9 @@ class TokenResource(resource.Resource):
 
         self._processToken(token_data, request)
         return server.NOT_DONE_YET
+
+    def preprocess_header(self, header):
+        return header
 
     def processToken(self, token_data, request):
         """
