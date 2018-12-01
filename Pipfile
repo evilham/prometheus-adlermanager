@@ -15,6 +15,7 @@ pyyaml = "*"
 klein = "*"
 "jinja2" = "*"
 markdown = "*"
+"rfc3339" = "*"
 
 [dev-packages]
 "flake8" = "*"
