@@ -55,5 +55,8 @@ class SitesManager(object):
             f.write(rfc3339.format(now))
 
     def get_last_updated(self, site):
-        with self._last_updated_file(site).open('r') as f:
-            date.fromisoformat(f.read())
+        try:
+            with self._last_updated_file(site).open('r') as f:
+                return date.fromisoformat(f.read())
+        except FileNotFoundError:
+            return None
