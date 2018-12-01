@@ -1,5 +1,9 @@
+title: ≠Ungleich Status
+url: https://ungleich.ch
+
 services:
   - name: Data Center Light
+    url: https://datacenterlight.ch
     label: dcl  # Must match the 'service' label in the Prometheus alerts
     description: |
       Our VM hosting: datacenterlight.ch, devuanhosting.com, ipv6onlyhosting.com
@@ -16,6 +20,33 @@ services:
       - name: Virtual machines
         description: Health of the virtual machines hosted in DCL
         label: vms
+
+  - name: Glarnercloud
+    url: https://ungleich.ch/de/cms/glarnercloud/
+    label: glarner  # Must match the 'service' label in the Prometheus alerts
+    description: |
+      Our hosted NextCloud instances
+
+    components:
+      - name: Storage
+        description: Our redundant cluster that keeps your data safe
+        label: storage  # Must match the 'component' label in the Prometheus alerts
+
+      - name: Network Connectivity
+        description: blah blah something something
+        label: network
+
+  - name: Internetz for Glarus
+    url: https://ungleich.ch/glasfaser
+    label: ispstuff # Must match the 'service' label in the Prometheus alerts
+    description: |
+      Have good internetz in Glarus!
+
+    components:
+      - name: Network Connectivity
+        description: blah blah something something
+        label: network
+
 
 
 branding:
