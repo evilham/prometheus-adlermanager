@@ -13,6 +13,7 @@ service-identity = "*"
 munch = "*"
 pyyaml = "*"
 klein = "*"
+"rfc3339" = "*"
 
 [dev-packages]
 "flake8" = "*"
