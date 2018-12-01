@@ -77,20 +77,23 @@ class ServiceManager(object):
 
     def process_alerts(self, alerts, timestamp):
         for alert in alerts:
-            # TODO document the heartbeat awfulness somewhere
-            if False: continue  # ignore the heartbeat TODO
-
             # TODO how exactly do alerts look?
             if alert.labels.component in self.definition.components:
                 self.process_alert(alert, timestamp)
 
     def process_alert(self, alert, timestamp):
-        if not self.current_incident:
-            self.current_incident = IncidentManager(timestamp)
+        # TODO document the heartbeat awfulness somewhere
+        if not self.current_incident and not alert._is_heartbeat:
+            # Open an incident only if we get a non-heartbeat alert.
+            self.current_incident = IncidentManager(self.path.child(timestamp), timestamp)
             self.current_incident.expired.addCallback(self.resolve_incident)
-        self.current_incident.process_alert(alert, timestamp)
 
-    def resolve_incident(self)
+        if self.current_incident:
+            self.current_incident.process_alert(alert, timestamp)
+
+    def resolve_incident(self):
+        # TODO: Further clean-up
+        self.current_incident = None
 
     @property
     def status(self):

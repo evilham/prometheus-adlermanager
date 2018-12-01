@@ -2,9 +2,10 @@ import attr
 import json
 import rfc3339
 from datetime                import datetime
-from enum                    import Enum
+from enum                    import IntEnum
 from munch                   import Munch
 from twisted.python.filepath import FilePath
+from twisted.internet        import reactor, defer, task
 
 from .Config import Config
 from .utils  import ensure_dirs, TimestampFile
@@ -31,8 +32,16 @@ class Severity(IntEnum):
 class IncidentManager(object):
     incidents_dir = attr.ib()
 
+    expired = attr.ib(factory=defer.Deferred)
+    _timeout = attr.ib(factory=defer.Deferred)
+
     def process_alert(self, alert, timestamp):
-        self._timeout.
+        self._timeout.cancel()
+        # TODO: Get timeout from settings?
+        self._timeout = task.deferLater(reactor, 30*60, self._expire)
+
+    def _expire(self):
+        self.expired.callback(self)
 
     def maybe_get_current_incident(self):
         last = self.get_last_incident()
@@ -46,18 +55,6 @@ class IncidentManager(object):
         return max(self.incidents_dir.listdir(), default=None)
 
 
-
-
-
-
-
-    def get_or_create_incident(self, time):
-        current = maybe_get_current_incident()
-            last_incident_time = time
-            last_incident = last_incident_time.strftime(FILENAME_TIME_FORMAT)
-        incident_dir = incidents_dir.child(last_incident)
-        ensure_dirs(incident_dir)
-        return incident_dir
 
     def save_alert(alert, time):
         incident_dir = get_or_create_incident(time)
