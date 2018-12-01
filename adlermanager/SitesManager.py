@@ -89,6 +89,7 @@ class ServiceManager(object):
             self.current_incident.expired.addCallback(self.resolve_incident)
 
         if self.current_incident:
+            self.log.info("Alert: {alert}", alert=alert)
             self.current_incident.process_alert(alert, timestamp)
 
     def resolve_incident(self):
