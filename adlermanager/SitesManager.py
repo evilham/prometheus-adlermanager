@@ -20,7 +20,7 @@ class SitesManager(object):
 
     def get_site(self, site):
         return Munch(definition=self.sites[site],
-                     incident_manager=self.incident_managers[site],
+                     incidents=self.incident_managers[site].get_last_incidents(),
                      last_updated=self.get_last_updated(site))
 
     def load_sites_data(self):

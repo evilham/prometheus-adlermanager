@@ -39,8 +39,8 @@ class ConfigClass(object):
            Use this to configure the timeout after which alerts will be
            considered separate incidents, in minutes.
            Example: If it is set for 30 minutes, and alerts come at 09:00,
-           09:20, and 10:00, then the first two will be the same incident and
-           the third one will begin a new incident.
+           09:20, 09:40, and 11:00, then the first 3 will be the same incident and
+           the last one will begin a new incident.
            Default value: 60 (i.e. 1 hour).
     """
 
