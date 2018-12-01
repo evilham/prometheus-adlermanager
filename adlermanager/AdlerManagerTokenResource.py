@@ -42,6 +42,5 @@ class AdlerManagerTokenResource(TokenResource):
 
         site = token_data
 
-        site.process_alerts(token_data.site, alert_data)
-        print(alert_data)  # TODO: Remove
+        site.process_alerts(alert_data)
         return True
