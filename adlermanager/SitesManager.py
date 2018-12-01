@@ -60,6 +60,12 @@ class SiteManager(object):
 
     def process_alerts(self, alerts):
         self.last_updated.now()
+
+        # TODO document the heartbeat awfulness somewhere
+        for alert in alerts:
+            alert._is_heartbeat = (
+                alert.labels.get('alertname') == 'EverythingIsFile')
+
         for service, manager in self.definition.services.items():
             manager.process_alerts(alerts, self.last_updated.get())
 
@@ -77,12 +83,10 @@ class ServiceManager(object):
 
     def process_alerts(self, alerts, timestamp):
         for alert in alerts:
-            # TODO how exactly do alerts look?
             if alert.labels.component in self.definition.components:
                 self.process_alert(alert, timestamp)
 
     def process_alert(self, alert, timestamp):
-        # TODO document the heartbeat awfulness somewhere
         if not self.current_incident and not alert._is_heartbeat:
             # Open an incident only if we get a non-heartbeat alert.
             self.current_incident = IncidentManager(self.path.child(timestamp), timestamp)
