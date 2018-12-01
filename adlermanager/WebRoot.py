@@ -47,12 +47,17 @@ def web_root(sites_manager):
         try:
             host = request.getRequestHostname().decode('utf-8')
         except:
-            return resource.ErrorPage(400, 'Bad cat', '<a href="http://http.cat/400">http://http.cat/400</a>')
+            return resource.ErrorPage(400, 'Bad cat',
+                                      '<a href="http://http.cat/400">http://http.cat/400</a>')
+        if host not in sites_manager.sites:
+            return resource.ErrorPage(404, 'Gone cat',
+                                        '<a href="http://http.cat/404">http://http.cat/404</a>')
         try:
             site = sites_manager.get_site(host)
         except Exception as ex:
             log.failure('sad cat')
-            return resource.ErrorPage(500, 'Sad cat', '<a href="http://http.cat/500">http://http.cat/500</a>')
+            return resource.ErrorPage(500, 'Sad cat',
+                                      '<a href="http://http.cat/500">http://http.cat/500</a>')
 
         site_path = FilePath(Config.data_dir).child("sites").child(host).path
         templates = get_jinja_env(site_path)
