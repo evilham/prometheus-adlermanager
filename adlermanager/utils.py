@@ -11,7 +11,7 @@ class TimestampFile(object):
 
     def set(self, time):
         with self.path.open('w') as f:
-            f.write(rfc3339.format(time))
+            f.write(rfc3339.format(time).encode('utf-8'))
 
     def now(self):
         self.set(datetime.now(timezone.utc))
@@ -19,7 +19,7 @@ class TimestampFile(object):
     def get(self):
         if self.path.exists():
             with self.path.open('r') as f:
-                return dateutil.parser.parse(f.read())
+                return dateutil.parser.parse(f.read().decode('utf-8'))
         else:
             return None
 
