@@ -76,6 +76,8 @@ class SiteManager(object):
         self._timeout.cancel()
         self._timeout = task.deferLater(reactor, 5 * 60, self.monitoring_down)
 
+        for alert in alerts:
+            alert.status = Severity.from_string(alert.labels.get(severity, "OK"))
         # TODO document the heartbeat awfulness somewhere
         # TODO: search for a list-splitting function this way:
         heartbeats = [
@@ -103,27 +105,31 @@ class ServiceManager(object):
     path             = attr.ib()
     definition       = attr.ib()
     current_incident = attr.ib(default=None)
-    components       = attr.ib(factory=list)
+    component_names  = attr.ib(factory=list)
+    monitoring_is_down = attr.ib(default=False)
 
     log = Logger()
 
+    def __attrs_post_init__(self):
+        # TODO: Recover status after server restart
+        self.component_names = [component.name
+                                for component in self.definition.components]
+
     def monitoring_down(self, timestamp):
+        self.monitoring_is_down = True
         if self.current_incident:
             self.current_incident.monitoring_down(timestamp)
 
     def process_heartbeats(self, heartbeats, timestamp):
+        self.monitoring_is_down = False
         if self.current_incident:
             self.current_incident.process_heartbeats(heartbeats)
 
     def process_alerts(self, alerts, timestamp):
-        if not self.components:
-            self.components = [component.name
-                               for component in self.definition.components]
-
         # Filter by service-affecting alerts
         alerts = [alert
                   for alert in alerts
-                  if alert.labels.alertname in self.components]
+                  if alert.labels.alertname in self.component_names]
 
         if alerts and not self.current_incident:
             # Something is up, open an incident
@@ -139,6 +145,8 @@ class ServiceManager(object):
 
     @property
     def status(self):
+        if self.monitoring_is_down:
+            return Severity.ERROR
         if self.current_incident:
             return max((alert.status for alert in self.current_incident.alerts),
                     default=Severity.OK)
@@ -152,3 +160,14 @@ class ServiceManager(object):
         past.reverse()  # Beautiful sleepless code poetry
         # TODO: get limit from config?
         return past[:5]
+
+    @property
+    def components(self):
+        return [
+            {
+                "definition": component,
+                "status": self.current_incident.component_status(component.name)
+                if self.current_incident else Severity.OK
+            }
+            for component in self.definition.components
+        ]

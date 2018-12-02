@@ -27,6 +27,15 @@ class Severity(IntEnum):
         }
         return labels[s.lower()]
 
+    @property
+    def css(self):
+        classes = {
+            self.OK:      "success",
+            self.WARNING: "warning",
+            self.ERROR:   "danger"
+        }
+        return classes[self]
+
 
 @attr.s
 class IncidentManager(object):
@@ -95,3 +104,9 @@ class IncidentManager(object):
         with self.path.open('w') as f:
             m = Munch.fromDict({"log": self._log, "timestamp": timestamp})
             f.write(m.toYAML().encode("utf-8"))
+
+    def component_status(self, component):
+        return max((alert.status
+                    for alert in self.alerts
+                    if alert.labels.alertname == component),
+                   default=Severity.OK)
