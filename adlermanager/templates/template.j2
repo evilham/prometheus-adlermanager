@@ -80,17 +80,15 @@
 {%   if site.monitoring_is_down %}
           <li class="text-danger">Monitoring is down!</li>
 {%   endif %}
-{% for service in site.service_managers %}
-{%   set service_alerts = service.active_alerts | d({}) %}
-{%   for alertname in service_alerts %}
+{%   set service_alerts = service.current_incident.active_alerts if service.current_incident else {} %}
+{%   for alertname in service_alerts.keys() %}
 {%     set alert = service_alerts[alertname] %}
           <li>
             <strong class="text-{{ alert.status.css }}">{{ alertname }}</strong>
             {{ alert.annotations.description }}
           </li>
 {%   endfor %}
-{% endfor %}
-    </ul>
+        </ul>
       </div>
 {% endif %}
     </div>
