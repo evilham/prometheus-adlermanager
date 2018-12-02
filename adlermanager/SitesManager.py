@@ -130,6 +130,7 @@ class ServiceManager(object):
 
     def process_alerts(self, alerts, timestamp):
         # Filter by service-affecting alerts
+        # TODO: Use a "component" label instead of alertname
         alerts = [alert
                   for alert in alerts
                   if alert.labels.alertname in self.component_names]
