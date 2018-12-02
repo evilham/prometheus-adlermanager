@@ -9,7 +9,7 @@ from twisted.python.filepath import FilePath
 from twisted.internet        import reactor, defer, task
 
 from .Config import Config
-from .utils  import ensure_dirs, TimestampFile
+from .utils  import ensure_dirs, TimestampFile, current_timestamp
 
 FILENAME_TIME_FORMAT = '%Y-%m-%d-%H%MZ'
 
@@ -45,9 +45,11 @@ class Severity(IntEnum):
 class IncidentManager(object):
     path = attr.ib()
 
+    last_alert       = attr.ib(default="")
+    active_alerts    = attr.ib(factory=dict)
     expired          = attr.ib(factory=defer.Deferred)
     _timeout         = attr.ib(factory=defer.Deferred)
-    alerts           = attr.ib(factory=list)
+    _alert_timeouts  = attr.ib(factory=dict)  # alert name => timeout
 
     _monitoring_down = attr.ib(default=False)
 
@@ -68,33 +70,32 @@ class IncidentManager(object):
         # TODO: Get IncidentClosing timeout from settings?
         #       Defaulting to 1h
         if alerts:
-            self.last_alert = timestamp
             self._timeout.cancel()
             self._timeout = task.deferLater(reactor, 3600, self._expire)
+            self.last_alert = timestamp
+        for alert in alerts:
+            alertname = alert.labels.alertname
+            if alertname in self._alert_timeouts:
+                self._alert_timeouts[alertname].cancel()
+            self._alert_timeouts[alertname] = task.deferLater(
+                reactor, 5*60, self._expire_alert, alertname)
 
-        old_names = set((alert.labels.alertname for alert in self.alerts))
-        alerts_names = set((alert.labels.alertname for alert in alerts))
-        # Partition alerts in:
-        preexisting_names = old_names.intersection(alerts_names)
-        new_names = alerts_names.difference(old_names)
-        absent_names = old_names.difference(alerts_names)
+        new_alerts = {alert.labels.alertname: alert
+                      for alert in alerts
+                      if alert.labels.alertname not in self._alert_timeouts}
 
-        self.alerts = alerts
-
-        # TODO: log new and absent
-        absent_alerts = [alert for alert in alerts
-                            if alert.labels.alertname in absent_names]
-        if absent_alerts:
-            self.log_event('Resolved', timestamp, absent_alerts)
-
-        new_alerts = [alert for alert in alerts
-                        if alert.labels.alertname in new_names]
         if new_alerts:
-            self.log_event('New', timestamp, new_alerts)
+            self.log_event('New', timestamp, new_alerts.values())
+
+        self.active_alerts.update(new_alerts)
 
     def _expire(self):
         if not self._monitoring_down:
             self.expired.callback(self)
+
+    def _expire_alert(self, alertname):
+        self.log_event('Resolved', current_timestamp(), self.active_alerts[alertname])
+        del self.active_alerts[alertname]
 
     def monitoring_down(self, timestamp):
         self._monitoring_down = True
