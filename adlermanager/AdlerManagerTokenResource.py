@@ -35,7 +35,7 @@ class AdlerManagerTokenResource(TokenResource):
         """
 
         try:
-            request_body = request.content.read().decode('utf-8')
+            request_body = request.content.read()
             alert_data = json.loads(request_body)
         except:
             return False
