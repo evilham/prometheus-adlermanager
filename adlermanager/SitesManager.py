@@ -149,7 +149,7 @@ class ServiceManager(object):
     @property
     def status(self):
         if self.current_incident:
-            return max((alert.status for alert in self.current_incident.alerts),
+            return max((component.status for component in self.components),
                     default=Severity.OK)
         return Severity.OK
 
@@ -165,10 +165,10 @@ class ServiceManager(object):
     @property
     def components(self):
         return [
-            {
+            Munch.fromDict({
                 "definition": component,
                 "status": self.current_incident.component_status(component.name)
                 if self.current_incident else Severity.OK
-            }
+            })
             for component in self.definition.components
         ]

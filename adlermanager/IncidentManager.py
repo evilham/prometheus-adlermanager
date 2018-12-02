@@ -43,11 +43,11 @@ class IncidentManager(object):
 
     expired          = attr.ib(factory=defer.Deferred)
     _timeout         = attr.ib(factory=defer.Deferred)
-    alerts           = attr.ib(default=list)
+    alerts           = attr.ib(factory=list)
 
     _monitoring_down = attr.ib(default=False)
 
-    _logs            = attr.ib(default=list)
+    _logs            = attr.ib(factory=list)
 
     def process_heartbeats(self, heartbeats, timestamp):
         if heartbeats:
