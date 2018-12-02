@@ -2,7 +2,6 @@ import attr
 import json
 import rfc3339
 from datetime                import datetime
-from enum                    import IntEnum
 from munch                   import Munch
 from twisted.python.filepath import FilePath
 from twisted.internet        import reactor, defer, task
@@ -13,10 +12,10 @@ from .utils  import ensure_dirs, TimestampFile
 FILENAME_TIME_FORMAT = '%Y-%m-%d-%H%MZ'
 
 
-class Severity(IntEnum):
-    OK      = 0
-    WARNING = 1
-    ERROR   = 2
+class Severity(object):
+    OK      = "0_OK"
+    WARNING = "1_WARNING"
+    ERROR   = "2_ERROR"
 
     @classmethod
     def from_string(cls, s):
