@@ -87,7 +87,7 @@ class IncidentManager(object):
                 reactor, 5*60, self._expire_alert, alertname)
 
         if new_alerts:
-            self.log_event('New', timestamp, list(ew_alerts.values()))
+            self.log_event('New', timestamp, list(new_alerts.values()))
 
     def _expire(self):
         if not self._monitoring_down:
