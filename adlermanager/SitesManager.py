@@ -80,7 +80,8 @@ class SiteManager(object):
         self._timeout = task.deferLater(reactor, 5 * 60, self.monitoring_down)
 
         for alert in alerts:
-            alert.status = Severity.from_string(alert.labels.get(severity, "OK"))
+            alert.status = Severity.from_string(
+                alert.labels.get("severity", "OK"))
         # TODO document the heartbeat awfulness somewhere
         # TODO: search for a list-splitting function this way:
         heartbeats = [
