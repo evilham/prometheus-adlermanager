@@ -36,6 +36,9 @@ class Severity(IntEnum):
         }
         return classes[self]
 
+    def __str__(self):
+        return self.css
+
 
 @attr.s
 class IncidentManager(object):
