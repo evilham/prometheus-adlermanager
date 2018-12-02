@@ -152,7 +152,8 @@ class ServiceManager(object):
     @property
     def status(self):
         if self.current_incident:
-            return max((component.status for component in self.components),
+            # TODO: Consistent naming
+            return max((alert.status for alert in self.current_incident.active_alerts.values()),
                     default=Severity.OK)
         return Severity.OK
 
