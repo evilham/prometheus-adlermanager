@@ -37,7 +37,7 @@ class AdlerManagerTokenResource(TokenResource):
 
         try:
             request_body = request.content.read()
-            alert_data = Munch(**json.loads(request_body))
+            alert_data = [Munch(alert) for alert in json.loads(request_body)]
         except:
             return False
 
