@@ -106,6 +106,15 @@ class SiteManager(object):
         return max((service.status for service in self.service_managers),
                    default=Severity.OK)
 
+    @property
+    def active_alerts(self):
+        alerts = dict()
+        for service in self.service_managers:
+            if service.current_incident:
+                for an, alert in service.current_incident.active_alerts.items():
+                    alerts[an] = alert
+        return alerts.values()
+
 @attr.s
 class ServiceManager(object):
     path             = attr.ib()
