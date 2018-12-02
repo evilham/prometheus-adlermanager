@@ -74,6 +74,24 @@
 {% endfor %}
         </div>
       </div>
+{% if service.status.css != "success" %}
+      <div class="card-footer">
+        <ul>
+{%   if site.monitoring_is_down %}
+          <li class="text-danger">Monitoring is down!</li>
+{%   endif %}
+{% for service in site.service_managers %}
+{%   for alertname in service.current_incident.active_alerts | d([]) %}
+{%     set alert = service.current_incident.active_alerts[alertname] %}
+          <li>
+            <strong class="text-{{ alert.status.css }}">{{ alertname }}</strong>
+            {{ alert.annotations.description }}
+          </li>
+{%   endfor %}
+{% endfor %}
+    </ul>
+      </div>
+{% endif %}
     </div>
 {% endfor %}
   </div>
