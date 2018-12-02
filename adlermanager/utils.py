@@ -28,6 +28,8 @@ class TimestampFile(object):
             return dateutil.parser.parse(d)
         return None
 
+def current_timestamp(self):
+    return rfc3339.format(datetime.now(timezone.utc))
 
 def ensure_dirs(path):
     path.makedirs(ignoreExistingDirectory=True)
