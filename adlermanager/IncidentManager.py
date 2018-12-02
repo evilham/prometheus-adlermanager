@@ -116,6 +116,6 @@ class IncidentManager(object):
 
     def component_status(self, component):
         return max((alert.status
-                    for alert in self.alerts
+                    for alert in self.active_alerts.value()
                     if alert.labels.alertname == component),
                    default=Severity.OK)

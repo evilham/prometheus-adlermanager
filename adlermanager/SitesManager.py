@@ -154,7 +154,7 @@ class ServiceManager(object):
         if self.current_incident:
             # TODO: Consistent naming
             return max((alert.status for alert in self.current_incident.active_alerts.values()),
-                    default=Severity.OK)
+                       default=Severity.OK)
         return Severity.OK
 
     @property
