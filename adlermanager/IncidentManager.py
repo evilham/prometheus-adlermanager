@@ -82,13 +82,14 @@ class IncidentManager(object):
         self.alerts = alerts
 
         # TODO: log new and absent
-        if absent_names:
-            absent_alerts = [alert for alert in alerts
-                             if alert.labels.alertname in absent_names]
+        absent_alerts = [alert for alert in alerts
+                            if alert.labels.alertname in absent_names]
+        if absent_alerts:
             self.log_event('Resolved', timestamp, absent_alerts)
-        if new_names:
-            new_alerts = [alert for alert in alerts
-                          if alert.labels.alertname in new_names]
+
+        new_alerts = [alert for alert in alerts
+                        if alert.labels.alertname in new_names]
+        if new_alerts:
             self.log_event('New', timestamp, new_alerts)
 
     def _expire(self):
