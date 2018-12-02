@@ -55,7 +55,7 @@ class SiteManager(object):
     def monitoring_down(self):
         self.monitoring_is_down = True
         for manager in self.service_managers:
-            manager.monitoring_down(self.last_updated.get())
+            manager.monitoring_down(self.last_updated.getStr())
 
     def load_definition(self):
         with self.path.child('site.yml').open('r') as f:
@@ -96,8 +96,8 @@ class SiteManager(object):
         ]
 
         for manager in self.service_managers:
-            manager.process_heartbeats(heartbeats, self.last_updated.get())
-            manager.process_alerts(alerts, self.last_updated.get())
+            manager.process_heartbeats(heartbeats, self.last_updated.getStr())
+            manager.process_alerts(alerts, self.last_updated.getStr())
 
     @property
     def status(self):

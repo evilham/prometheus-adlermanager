@@ -16,12 +16,17 @@ class TimestampFile(object):
     def now(self):
         self.set(datetime.now(timezone.utc))
 
+    def getStr(self):
+        if not self.path.exists():
+            return ""
+        with self.path.open('r') as f:
+            return f.read().decode('utf-8')
+
     def get(self):
-        if self.path.exists():
-            with self.path.open('r') as f:
-                return dateutil.parser.parse(f.read().decode('utf-8'))
-        else:
-            return None
+        d = self.getStr()
+        if d:
+            return dateutil.parser.parse(d)
+        return None
 
 
 def ensure_dirs(path):
