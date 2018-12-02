@@ -73,21 +73,21 @@ class IncidentManager(object):
             self._timeout.cancel()
             self._timeout = task.deferLater(reactor, 3600, self._expire)
             self.last_alert = timestamp
+
+        new_alerts = dict()
+
         for alert in alerts:
             alertname = alert.labels.alertname
             if alertname in self._alert_timeouts:
                 self._alert_timeouts[alertname].cancel()
+            else:
+                new_alerts[alertname] = alert
+            active_alerts[alertname] = alert
             self._alert_timeouts[alertname] = task.deferLater(
                 reactor, 5*60, self._expire_alert, alertname)
 
-        new_alerts = {alert.labels.alertname: alert
-                      for alert in alerts
-                      if alert.labels.alertname not in self._alert_timeouts}
-
         if new_alerts:
             self.log_event('New', timestamp, new_alerts.values())
-
-        self.active_alerts.update(new_alerts)
 
     def _expire(self):
         if not self._monitoring_down:
