@@ -82,7 +82,7 @@ class IncidentManager(object):
                 self._alert_timeouts[alertname].cancel()
             else:
                 new_alerts[alertname] = alert
-            active_alerts[alertname] = alert
+            self.active_alerts[alertname] = alert
             self._alert_timeouts[alertname] = task.deferLater(
                 reactor, 5*60, self._expire_alert, alertname)
 
