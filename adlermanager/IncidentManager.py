@@ -71,7 +71,7 @@ class IncidentManager(object):
         old_names = set((alert.labels.alertname for alert in self.alerts))
         alerts_names = set((alert.labels.alertname for alert in alerts))
         # Partition alerts in:
-        preexisting_names = old_names.interesection(alerts_names)
+        preexisting_names = old_names.intersection(alerts_names)
         new_names = alerts_names.difference(old_names)
         absent_names = old_names.difference(alerts_names)
 
