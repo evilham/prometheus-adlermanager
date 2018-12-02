@@ -81,8 +81,9 @@
           <li class="text-danger">Monitoring is down!</li>
 {%   endif %}
 {% for service in site.service_managers %}
-{%   for alertname in service.current_incident.active_alerts | d([]) %}
-{%     set alert = service.current_incident.active_alerts[alertname] %}
+{%   set service_alerts = service.active_alerts | d({}) %}
+{%   for alertname in service_alerts %}
+{%     set alert = service_alerts[alertname] %}
           <li>
             <strong class="text-{{ alert.status.css }}">{{ alertname }}</strong>
             {{ alert.annotations.description }}
