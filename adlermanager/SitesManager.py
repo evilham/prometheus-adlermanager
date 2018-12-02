@@ -64,14 +64,15 @@ class SiteManager(object):
         # TODO document the heartbeat awfulness somewhere
         for alert in alerts:
             alert._is_heartbeat = (
-                alert.labels.get('alertname') == 'EverythingIsFile')
+                alert.labels.get('alertname') == 'EverythingIsFine')
 
-        for service, manager in self.definition.services.items():
+        for manager in self.service_managers:
             manager.process_alerts(alerts, self.last_updated.get())
 
     @property
     def status(self):
-        return max((service.status for service in self.service_managers), default=Severity.OK)
+        return max((service.status for service in self.service_managers),
+                   default=Severity.OK)
 
 @attr.s
 class ServiceManager(object):
@@ -83,7 +84,8 @@ class ServiceManager(object):
 
     def process_alerts(self, alerts, timestamp):
         for alert in alerts:
-            if alert.labels.component in self.definition.components:
+            if alert.labels.alertname in (c.name
+                                          for c in self.definition.components):
                 self.process_alert(alert, timestamp)
 
     def process_alert(self, alert, timestamp):
