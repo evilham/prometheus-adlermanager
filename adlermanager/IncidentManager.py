@@ -32,12 +32,13 @@ class Severity(IntEnum):
 class IncidentManager(object):
     path = attr.ib()
 
-    expired         = attr.ib(factory=defer.Deferred)
-    _timeout        = attr.ib(factory=defer.Deferred)
-    alerts          = attr.ib(default=list)
-    closed          = attr.ib(default=None)
+    expired          = attr.ib(factory=defer.Deferred)
+    _timeout         = attr.ib(factory=defer.Deferred)
+    alerts           = attr.ib(default=list)
 
     _monitoring_down = attr.ib(default=False)
+
+    _logs            = attr.ib(default=list)
 
     def process_heartbeats(self, heartbeats, timestamp):
         if heartbeats:
@@ -86,4 +87,11 @@ class IncidentManager(object):
         self.log_event('[Meta]MonitoringDown', timestamp)
 
     def log_event(message, timestamp, alerts=[]):
-        pass
+        obj = {"message": message, "timestamp": timestamp}
+        if alerts:
+            obj["alerts"] = alerts
+        self._log.append(obj)
+        # Persist messages
+        with self.path.open('w') as f:
+            m = Munch.fromDict({"log": self._log, "timestamp": timestamp})
+            f.write(m.toYAML().encode("utf-8"))
