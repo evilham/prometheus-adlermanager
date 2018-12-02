@@ -2,7 +2,7 @@ import attr
 from munch                   import Munch
 from twisted.python.filepath import FilePath
 from twisted.logger          import Logger
-from twisted.internet        import reactor, defer
+from twisted.internet        import reactor, defer, task
 
 from .Config          import Config
 from .IncidentManager import IncidentManager, Severity
