@@ -30,49 +30,60 @@ class Severity(IntEnum):
 
 @attr.s
 class IncidentManager(object):
-    incidents_dir = attr.ib()
+    path = attr.ib()
 
-    expired = attr.ib(factory=defer.Deferred)
-    _timeout = attr.ib(factory=defer.Deferred)
+    expired         = attr.ib(factory=defer.Deferred)
+    _timeout        = attr.ib(factory=defer.Deferred)
+    alerts          = attr.ib(default=list)
+    closed          = attr.ib(default=None)
 
-    def process_alert(self, alert, timestamp):
-        self._timeout.cancel()
-        # TODO: Get timeout from settings?
-        self._timeout = task.deferLater(reactor, 30*60, self._expire)
+    _monitoring_down = attr.ib(default=False)
+
+    def process_heartbeats(self, heartbeats, timestamp):
+        if heartbeats:
+            self.last_updated = timestamp
+            if self._monitoring_down:
+                self._monitoring_down = False
+                # Monitoring is back up, re-activate timeout
+                # TODO: Get IncidentClosing timeout from settings?
+                #       Defaulting to 1h
+                self._timeout = task.deferLater(reactor, 3600, self._expire)
+                self.log_event('[Meta]MonitoringUp', timestamp)
+
+    def process_alerts(self, alerts, timestamp):
+        # TODO: Get IncidentClosing timeout from settings?
+        #       Defaulting to 1h
+        if alerts:
+            self.last_alert = timestamp
+            self._timeout.cancel()
+            self._timeout = task.deferLater(reactor, 3600, self._expire)
+
+        old_names = set((alert.labels.alertname for alert in self.alerts))
+        alerts_names = set((alert.labels.alertname for alert in alerts))
+        # Partition alerts in:
+        preexisting_names = old_names.interesection(alerts_names)
+        new_names = alerts_names.difference(old_names)
+        absent_names = old_names.difference(alerts_names)
+
+        self.alerts = alerts
+
+        # TODO: log new and absent
+        if absent_names:
+            absent_alerts = [alert for alert in alerts
+                             if alert.labels.alertname in absent_names]
+            self.log_event('Resolved', timestamp, absent_alerts)
+        if new_names:
+            new_alerts = [alert for alert in alerts
+                          if alert.labels.alertname in new_names]
+            self.log_event('New', timestamp, new_alerts)
 
     def _expire(self):
-        self.expired.callback(self)
+        if not self._monitoring_down:
+            self.expired.callback(self)
 
-    def maybe_get_current_incident(self):
-        last = self.get_last_incident()
-        last_incident_time = datetime.strptime(FILENAME_TIME_FORMAT)
-        if time - last_incident_time >= Config.new_incident_timeout:
-            return last
-        else:
-            return None
+    def monitoring_down(self, timestamp):
+        self._monitoring_down = True
+        self.log_event('[Meta]MonitoringDown', timestamp)
 
-    def get_last_incident(self):
-        return max(self.incidents_dir.listdir(), default=None)
-
-
-
-    def save_alert(alert, time):
-        incident_dir = get_or_create_incident(time)
-        alerts_dir = incident_dir.child('alerts')
-        ensure_dirs(alerts_dir)
-        alert_file = alerts_dir.child(time.strftime(FILENAME_TIME_FORMAT)+'.json')
-        with alert_file.open('w'):
-            alert_file.write(json.dumps(alert))
-        TimestampFile(incident_dir.child('last_alert.txt')).now()
-
-    def get_last_incidents(self, count=5):
-        if not self.incidents_dir.exists(): return []
-        dirs = sorted(self.incidents_dir.listdir(), reverse=True)[:count]
-
-    def is_incident_ongoing(self, incident):
-        last_alert = TimestampFile(self.incidents_dir.child(incident).child('last_alert.txt'))
-
-    def load_incident_info(self, incident):
-        incident = Munch()
-        incident.alerts = self.load_alerts(incident)
-        return incident
+    def log_event(message, timestamp, alerts=[]):
+        pass

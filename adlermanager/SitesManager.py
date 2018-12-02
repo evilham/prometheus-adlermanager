@@ -2,6 +2,7 @@ import attr
 from munch                   import Munch
 from twisted.python.filepath import FilePath
 from twisted.logger          import Logger
+from twisted.internet        import reactor, defer
 
 from .Config          import Config
 from .IncidentManager import IncidentManager, Severity
@@ -36,6 +37,8 @@ class SiteManager(object):
     tokens = attr.ib(factory=list)
     log    = Logger()
 
+    _timeout = attr.ib(factory=defer.Deferred)
+
     def __attrs_post_init__(self):
         self.load_definition()
         self.load_tokens()
@@ -44,6 +47,13 @@ class SiteManager(object):
             ServiceManager(self.path.child(s.name), s)
             for s in self.definition.services
         ]
+        # TODO: Get monitoring timeout from config
+        #       Default to 5 mins
+        self._timeout = task.deferLater(reactor, 5 * 60, self.monitoring_down)
+
+    def monitoring_down(self):
+        for manager in self.service_managers:
+            manager.monitoring_down(self.last_updated.get())
 
     def load_definition(self):
         with self.path.child('site.yml').open('r') as f:
@@ -61,12 +71,26 @@ class SiteManager(object):
     def process_alerts(self, alerts):
         self.last_updated.now()
 
+        # TODO: Get monitoring timeout from config
+        #       Default to 5 mins
+        self._timeout.cancel()
+        self._timeout = task.deferLater(reactor, 5 * 60, self.monitoring_down)
+
         # TODO document the heartbeat awfulness somewhere
-        for alert in alerts:
-            alert._is_heartbeat = (
-                alert.labels.get('alertname') == 'EverythingIsFine')
+        # TODO: search for a list-splitting function this way:
+        heartbeats = [
+            alert
+            for alert in alerts
+            if alert.labels.get('alertname') == 'EverythingIsFine'
+        ]
+        alerts = [
+            alert
+            for alert in alerts
+            if alert.labels.get('alertname') != 'EverythingIsFine'
+        ]
 
         for manager in self.service_managers:
+            manager.process_heartbeats(heartbeats, self.last_updated.get())
             manager.process_alerts(alerts, self.last_updated.get())
 
     @property
@@ -79,30 +103,52 @@ class ServiceManager(object):
     path             = attr.ib()
     definition       = attr.ib()
     current_incident = attr.ib(default=None)
-    past_incidents   = attr.ib(factory=list)
+    components       = attr.ib(factory=list)
+
     log = Logger()
 
-    def process_alerts(self, alerts, timestamp):
-        for alert in alerts:
-            if alert.labels.alertname in (c.name
-                                          for c in self.definition.components):
-                self.process_alert(alert, timestamp)
+    def monitoring_down(self, timestamp):
+        if self.current_incident:
+            self.current_incident.monitoring_down(timestamp)
 
-    def process_alert(self, alert, timestamp):
-        if not self.current_incident and not alert._is_heartbeat:
-            # Open an incident only if we get a non-heartbeat alert.
-            self.current_incident = IncidentManager(self.path.child(timestamp), timestamp)
+    def process_heartbeats(self, heartbeats, timestamp):
+        if self.current_incident:
+            self.current_incident.process_heartbeats(heartbeats)
+
+    def process_alerts(self, alerts, timestamp):
+        if not self.components:
+            self.components = [component.name
+                               for component in self.definition.components]
+
+        # Filter by service-affecting alerts
+        alerts = [alert
+                  for alert in alerts
+                  if alert.labels.alertname in self.components]
+
+        if alerts and not self.current_incident:
+            # Something is up, open an incident
+            self.current_incident = IncidentManager(self.path.child(timestamp))
+            # Notify when incident is considered resolved
             self.current_incident.expired.addCallback(self.resolve_incident)
 
         if self.current_incident:
-            self.log.info("Alert: {alert}", alert=alert)
-            self.current_incident.process_alert(alert, timestamp)
+            self.current_incident.process_alerts(alerts, timestamp)
 
     def resolve_incident(self):
-        # TODO: Further clean-up
         self.current_incident = None
 
     @property
     def status(self):
-        # TODO
-        return max((alert.status for alert in self.current_incident.alerts), default=Severity.OK)
+        if self.current_incident:
+            return max((alert.status for alert in self.current_incident.alerts),
+                    default=Severity.OK)
+        return Severity.OK
+
+    @property
+    def past_incidents(self):
+        past = self.path.children().sort()
+        if self.current_incident and self.current_incident.path in past:
+            past.remove(self.current_incident.path)
+        past.reverse()  # Beautiful sleepless code poetry
+        # TODO: get limit from config?
+        return past[:5]
