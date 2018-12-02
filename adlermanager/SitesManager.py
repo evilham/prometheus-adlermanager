@@ -137,6 +137,8 @@ class ServiceManager(object):
         if alerts and not self.current_incident:
             # Something is up, open an incident
             self.current_incident = IncidentManager(self.path.child(timestamp))
+            if not self.path.isdir():
+                self.path.createDirectory()
             # Notify when incident is considered resolved
             self.current_incident.expired.addCallback(self.resolve_incident)
 

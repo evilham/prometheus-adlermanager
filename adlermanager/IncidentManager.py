@@ -99,10 +99,10 @@ class IncidentManager(object):
         obj = {"message": message, "timestamp": timestamp}
         if alerts:
             obj["alerts"] = alerts
-        self._log.append(obj)
+        self._logs.append(obj)
         # Persist messages
         with self.path.open('w') as f:
-            m = Munch.fromDict({"log": self._log, "timestamp": timestamp})
+            m = Munch.fromDict({"log": self._logs, "timestamp": timestamp})
             f.write(m.toYAML().encode("utf-8"))
 
     def component_status(self, component):
