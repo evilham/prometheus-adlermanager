@@ -126,7 +126,7 @@ class ServiceManager(object):
 
     def process_heartbeats(self, heartbeats, timestamp):
         if self.current_incident:
-            self.current_incident.process_heartbeats(heartbeats)
+            self.current_incident.process_heartbeats(heartbeats, timestamp)
 
     def process_alerts(self, alerts, timestamp):
         # Filter by service-affecting alerts
