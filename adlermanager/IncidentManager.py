@@ -95,7 +95,7 @@ class IncidentManager(object):
         self._monitoring_down = True
         self.log_event('[Meta]MonitoringDown', timestamp)
 
-    def log_event(message, timestamp, alerts=[]):
+    def log_event(self, message, timestamp, alerts=[]):
         obj = {"message": message, "timestamp": timestamp}
         if alerts:
             obj["alerts"] = alerts
