@@ -36,6 +36,7 @@ class SiteManager(object):
     path   = attr.ib()
     tokens = attr.ib(factory=list)
     log    = Logger()
+    monitoring_is_down = attr.ib(default=False)
 
     _timeout = attr.ib(factory=defer.Deferred)
 
@@ -52,6 +53,7 @@ class SiteManager(object):
         self._timeout = task.deferLater(reactor, 5 * 60, self.monitoring_down)
 
     def monitoring_down(self):
+        self.monitoring_is_down = True
         for manager in self.service_managers:
             manager.monitoring_down(self.last_updated.get())
 
@@ -73,6 +75,7 @@ class SiteManager(object):
 
         # TODO: Get monitoring timeout from config
         #       Default to 5 mins
+        self.monitoring_is_down = False
         self._timeout.cancel()
         self._timeout = task.deferLater(reactor, 5 * 60, self.monitoring_down)
 
@@ -97,6 +100,8 @@ class SiteManager(object):
 
     @property
     def status(self):
+        if self.monitoring_is_down:
+            return Severity.ERROR
         return max((service.status for service in self.service_managers),
                    default=Severity.OK)
 
@@ -106,7 +111,6 @@ class ServiceManager(object):
     definition       = attr.ib()
     current_incident = attr.ib(default=None)
     component_names  = attr.ib(factory=list)
-    monitoring_is_down = attr.ib(default=False)
 
     log = Logger()
 
@@ -116,12 +120,10 @@ class ServiceManager(object):
                                 for component in self.definition.components]
 
     def monitoring_down(self, timestamp):
-        self.monitoring_is_down = True
         if self.current_incident:
             self.current_incident.monitoring_down(timestamp)
 
     def process_heartbeats(self, heartbeats, timestamp):
-        self.monitoring_is_down = False
         if self.current_incident:
             self.current_incident.process_heartbeats(heartbeats)
 
@@ -145,8 +147,6 @@ class ServiceManager(object):
 
     @property
     def status(self):
-        if self.monitoring_is_down:
-            return Severity.ERROR
         if self.current_incident:
             return max((alert.status for alert in self.current_incident.alerts),
                     default=Severity.OK)
