@@ -1,6 +1,7 @@
 from twisted.web import resource
 
 import json
+from munch import Munch
 
 from .TokenResource import TokenResource
 
@@ -36,7 +37,7 @@ class AdlerManagerTokenResource(TokenResource):
 
         try:
             request_body = request.content.read()
-            alert_data = json.loads(request_body)
+            alert_data = Munch(**json.loads(request_body))
         except:
             return False
 
