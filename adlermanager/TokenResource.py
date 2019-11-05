@@ -28,13 +28,12 @@ class TokenResource(resource.Resource):
 
         @see: L{resource.Resource.render}.
         """
-        header = self.preprocess_header(request.getHeader(self.HEADER))
+        raw_header = request.getHeader(self.HEADER)
+        if not raw_header: return self._unauthorized(request)
+        header = self.preprocess_header(raw_header)
         token_data = self.tokens.get(header, None)
 
-        if token_data is None:
-            request.setResponseCode(UNAUTHORIZED)
-            page = self.unauthorizedPage()
-            return page.render(request)
+        if token_data is None: return self._unauthorized(request)
 
         self._processToken(token_data, request)
         return server.NOT_DONE_YET
@@ -75,7 +74,16 @@ class TokenResource(resource.Resource):
             success = False
         request.setResponseCode(OK if success else INTERNAL_SERVER_ERROR)
         request.finish()
-        return success
+        defer.returnValue(success)
+
+    def _unauthorized(self, request):
+        """
+        Send a 401 Unauthorized response.
+
+        @param request: The request object associated to this request.
+        """
+        request.setResponseCode(UNAUTHORIZED)
+        return self.unauthorizedPage().render(request)
 
     def unauthorizedPage(self):
         """
