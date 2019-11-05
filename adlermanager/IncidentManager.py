@@ -21,6 +21,8 @@ class Severity(IntEnum):
 
     @classmethod
     def from_string(cls, s):
+        # TODO: Do something sensitive with other priorities
+        #       At least document them somewhere :-D
         labels = {
             "ok":      cls.OK,
             "warning": cls.WARNING,
@@ -54,6 +56,11 @@ class IncidentManager(object):
     _monitoring_down = attr.ib(default=False)
 
     _logs            = attr.ib(factory=list)
+    # TODO: Get IncidentClosing timeout from settings?
+    #       Defaulting to 30m
+    _monitoring_grace_period = attr.ib(default=60*30)
+    #       Defaulting to 5m
+    _alertExpireTime = attr.ib(default=5*60)
 
     def process_heartbeats(self, heartbeats, timestamp):
         if heartbeats:
@@ -61,17 +68,13 @@ class IncidentManager(object):
             if self._monitoring_down:
                 self._monitoring_down = False
                 # Monitoring is back up, re-activate timeout
-                # TODO: Get IncidentClosing timeout from settings?
-                #       Defaulting to 1h
-                self._timeout = task.deferLater(reactor, 3600, self._expire)
+                self._timeout = task.deferLater(reactor, self._monitoring_grace_period, self._expire)
                 self.log_event('[Meta]MonitoringUp', timestamp)
 
     def process_alerts(self, alerts, timestamp):
-        # TODO: Get IncidentClosing timeout from settings?
-        #       Defaulting to 1h
         if alerts:
             self._timeout.cancel()
-            self._timeout = task.deferLater(reactor, 3600, self._expire)
+            self._timeout = task.deferLater(reactor, self._monitoring_grace_period, self._expire)
             self.last_alert = timestamp
 
         new_alerts = dict()
@@ -84,24 +87,26 @@ class IncidentManager(object):
                 new_alerts[alertname] = alert
             self.active_alerts[alertname] = alert
             self._alert_timeouts[alertname] = task.deferLater(
-                reactor, 5*60, self._expire_alert, alertname)
+                reactor, self._alertExpireTime, self._expire_alert, alertname)
 
         if new_alerts:
-            self.log_event('New', timestamp, list(new_alerts.values()))
+            self.log_event('New', timestamp, alerts=list(new_alerts.values()))
 
     def _expire(self):
         if not self._monitoring_down:
             self.expired.callback(self)
 
     def _expire_alert(self, alertname):
-        self.log_event('Resolved', current_timestamp(), self.active_alerts[alertname])
+        self.log_event('Resolved', current_timestamp(), alert=self.active_alerts[alertname])
         del self.active_alerts[alertname]
 
     def monitoring_down(self, timestamp):
         self._monitoring_down = True
         self.log_event('[Meta]MonitoringDown', timestamp)
 
-    def log_event(self, message, timestamp, alerts=[]):
+    def log_event(self, message, timestamp, alerts=[], alert=None):
+        if alert is not None:
+            alerts.append(alert)
         obj = {"message": message, "timestamp": timestamp}
         if alerts:
             alerts = copy.deepcopy(alerts)

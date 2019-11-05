@@ -50,7 +50,7 @@
 {%   endif %}
         </span>
         <span class="float-right">
-{%  for component in service.components | reverse %}
+{%  for component in service.components %}
           <span class="badge badge-{{ component.status.css }}">{{ component.definition.name }}</span>
 {% endfor %}
         </span>
