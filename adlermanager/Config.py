@@ -55,6 +55,8 @@ class ConfigClass(object):
 
 
     # SSH
+    ssh_enabled = attr.ib(
+            default=os.getenv('SSH_ENABLED', b'') != b'')
     ssh_endpoint = attr.ib(
             default=os.getenv('SSH_ENDPOINT', r'tcp6:interface=\:\::port=2222'))
     ssh_key_size = attr.ib(

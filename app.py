@@ -14,7 +14,6 @@ import os
 sys.path += [ os.path.dirname(os.path.realpath(__file__)) ]
 
 from adlermanager import Config, SitesManager
-from adlermanager import conch_helper, AdlerManagerSSHProtocol
 from adlermanager import web_root
 
 if not FilePath(Config.data_dir).isdir():
@@ -33,12 +32,16 @@ i.setServiceParent(serv_collection)
 
 # Set up SSH config service
 
-# TODO: Make this more decent
-AdlerManagerSSHProtocol.site_manager = sites_manager
 
-i = conch_helper(
-    Config.ssh_endpoint,
-    proto=AdlerManagerSSHProtocol,
-    keyDir=Config.ssh_keys_dir,
-    keySize=Config.ssh_key_size)
-i.setServiceParent(serv_collection)
+if Config.ssh_enabled:
+    from adlermanager.AdlerManagerSSHProtocol import AdlerManagerSSHProtocol
+    from adlermanager.conch_helpers import conch_helper
+
+    # TODO: Make this more decent
+    AdlerManagerSSHProtocol.site_manager = sites_manager
+    i = conch_helper(
+        Config.ssh_endpoint,
+        proto=AdlerManagerSSHProtocol,
+        keyDir=Config.ssh_keys_dir,
+        keySize=Config.ssh_key_size)
+    i.setServiceParent(serv_collection)
