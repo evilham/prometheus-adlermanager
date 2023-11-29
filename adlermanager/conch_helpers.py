@@ -18,14 +18,14 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
     def __init__(self, user):
         recvline.HistoricRecvLine.__init__(self)
         self.user = user
-        self.ps = (b'', b'')
+        self.ps = (b"", b"")
 
     def connectionMade(self):
         recvline.HistoricRecvLine.connectionMade(self)
         # CTRL_D
-        self.keyHandlers[b'\x04'] = self.handle_EOF
+        self.keyHandlers[b"\x04"] = self.handle_EOF
         # CTRL_BACKSLASH
-        self.keyHandlers[b'\x1c'] = self.handle_QUIT
+        self.keyHandlers[b"\x1c"] = self.handle_QUIT
 
         self.terminal.write(self.motd())
         self.terminal.nextLine()
@@ -34,7 +34,7 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
 
     def handle_EOF(self):
         if self.lineBuffer:
-            self.terminal.write(b'\a')
+            self.terminal.write(b"\a")
         else:
             self.handle_QUIT()
 
@@ -51,8 +51,8 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         The convention is that a cmd command translates to a do_cmd method.
         """
         try:
-            cmd_str = cmd.decode('utf-8')
-            return getattr(self, 'do_' + cmd_str, None)
+            cmd_str = cmd.decode("utf-8")
+            return getattr(self, "do_" + cmd_str, None)
         except:
             return None
 
@@ -67,12 +67,11 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
                 except Exception as ex:
                     self.terminal.write("Error: {}".format(ex))
             else:
-                self.terminal.write(b'No such command: ' + cmd)
+                self.terminal.write(b"No such command: " + cmd)
                 self.terminal.nextLine()
         self.showPrompt()
 
-
-    def do_help(self, cmd=''):
+    def do_help(self, cmd=""):
         """
         Get help on a command. Usage: help command
         """
@@ -81,14 +80,12 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
             if func:
                 self.terminal.write(func.__doc__)
             else:
-                self.terminal.write('No such command: {}'.format(cmd))
+                self.terminal.write("No such command: {}".format(cmd))
         else:
-            self.terminal.write('Available commands:')
+            self.terminal.write("Available commands:")
             self.terminal.nextLine()
             self.terminal.nextLine()
-            for cmd in (attr[3:]
-                        for attr in dir(self)
-                        if attr.startswith('do_')):
+            for cmd in (attr[3:] for attr in dir(self) if attr.startswith("do_")):
                 self.terminal.write(cmd)
                 self.terminal.nextLine()
         self.terminal.nextLine()
@@ -113,7 +110,7 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         self.handle_QUIT()
 
     def motd(self):
-        return ''
+        return ""
 
 
 @implementer(conchinterfaces.ISession)
@@ -123,7 +120,7 @@ class SSHSimpleAvatar(avatar.ConchUser):
 
         self.username = username
         self.proto = proto
-        self.channelLookup.update({b'session': session.SSHSession})
+        self.channelLookup.update({b"session": session.SSHSession})
 
     def openShell(self, protocol):
         serverProtocol = insults.ServerProtocol(self.proto, self)
@@ -184,6 +181,7 @@ class SSHKeyDirectory(object):
 
     @ivar baseDir: the base directory for key lookup.
     """
+
     def __init__(self, baseDir, parseKey=keys.Key.fromString):
         """
         Initialises a new L{SSHKeyDirectory}.
@@ -196,7 +194,7 @@ class SSHKeyDirectory(object):
 
     def getAuthorizedKeys(self, username):
         userKeys = []
-        keyFile = self.baseDir.child(username + b'.key')
+        keyFile = self.baseDir.child(username + b".key")
         keyDir = self.baseDir.child(username)
         print(keyFile, keyDir)
 
@@ -205,13 +203,12 @@ class SSHKeyDirectory(object):
                 yield key
 
         if keyDir.isdir():
-            for f in keyDir.globChildren('*.key'):
+            for f in keyDir.globChildren("*.key"):
                 for key in readAuthorizedKeyFile(f.open(), self.parseKey):
                     yield key
 
 
-def conch_helper(endpoint, proto=None, namespace=dict(),
-                 keyDir=None, keySize=4096):
+def conch_helper(endpoint, proto=None, namespace=dict(), keyDir=None, keySize=4096):
     """
     Return a L{SSHKeyDirectory} based SSH service with the given parameters.
 
@@ -226,13 +223,14 @@ def conch_helper(endpoint, proto=None, namespace=dict(),
     """
     if keyDir is None:
         from twisted.python._appdirs import getDataDirectory
+
         keyDir = getDataDirectory()
 
     keyDir = filepath.FilePath(keyDir)
-    keyDir.child('server').makedirs(True)
-    keyDir.child('users').makedirs(True)
+    keyDir.child("server").makedirs(True)
+    keyDir.child("users").makedirs(True)
 
-    checker = SSHPublicKeyChecker(SSHKeyDirectory(keyDir.child('users')))
+    checker = SSHPublicKeyChecker(SSHKeyDirectory(keyDir.child("users")))
 
     if proto is None:
         sshRealm = manhole_ssh.TerminalRealm()
@@ -241,13 +239,12 @@ def conch_helper(endpoint, proto=None, namespace=dict(),
         sshRealm = SSHSimpleRealm(proto)
     sshPortal = portal.Portal(sshRealm, [checker])
 
-
-    sshKeyPath = keyDir.child('server').child('server.key')
+    sshKeyPath = keyDir.child("server").child("server.key")
     sshKey = keys._getPersistentRSAKey(sshKeyPath, keySize)
 
     sshFactory = manhole_ssh.ConchFactory(sshPortal)
-    sshFactory.publicKeys[b'ssh-rsa'] = sshKey
-    sshFactory.privateKeys[b'ssh-rsa'] = sshKey
+    sshFactory.publicKeys[b"ssh-rsa"] = sshKey
+    sshFactory.privateKeys[b"ssh-rsa"] = sshKey
 
     sshService = strports.service(endpoint, sshFactory)
     return sshService

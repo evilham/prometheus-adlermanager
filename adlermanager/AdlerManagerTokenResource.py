@@ -10,7 +10,8 @@ class AdlerManagerTokenResource(TokenResource):
     """
     TokenResource used for AdlerManager
     """
-    HEADER = 'Authorization'
+
+    HEADER = "Authorization"
 
     def __init__(self, site_manager):
         """
@@ -22,7 +23,7 @@ class AdlerManagerTokenResource(TokenResource):
         self.site_manager = site_manager
 
     def preprocess_header(self, header):
-        return header.split(' ')[-1]
+        return header.split(" ")[-1]
 
     def processToken(self, token_data, request):
         """

@@ -29,19 +29,21 @@ class AdlerManagerSSHProtocol(SSHSimpleProtocol):
 
         # Everything is bytes, we have to go back to unicode before
         try:
-            token_id = token_id.decode('utf-8')
-            person = person.decode('utf-8')
-            person_id = person_id.decode('utf-8')
+            token_id = token_id.decode("utf-8")
+            person = person.decode("utf-8")
+            person_id = person_id.decode("utf-8")
         except:
-            self.terminal.write('Could not decode your arguments.')
+            self.terminal.write("Could not decode your arguments.")
             self.terminal.nextLine()
             return
 
-        token = self.sites_manager.add_token(token_id, )
-        self.terminal.write('Your new Token is: {}'.format(token))
+        token = self.sites_manager.add_token(
+            token_id,
+        )
+        self.terminal.write("Your new Token is: {}".format(token))
         self.terminal.nextLine()
 
     @functools.lru_cache()  # we don't need to re-read every time
     def motd(self):
         # TODO: Use data location?
-        return open('motd.txt').read()
+        return open("motd.txt").read()
