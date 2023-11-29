@@ -1,15 +1,10 @@
 import attr
-import json
-import rfc3339
 import copy
-from datetime import datetime
 from enum import IntEnum
 from munch import Munch
-from twisted.python.filepath import FilePath
 from twisted.internet import reactor, defer, task
 
-from .Config import Config
-from .utils import ensure_dirs, TimestampFile, current_time, current_timestamp
+from .utils import current_time, current_timestamp
 
 FILENAME_TIME_FORMAT = "%Y-%m-%d-%H%MZ"
 

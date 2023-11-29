@@ -8,7 +8,7 @@ from twisted.internet import reactor, defer, task
 from .Config import Config
 from .IncidentManager import IncidentManager, Severity
 
-from .utils import ensure_dirs, TimestampFile, as_list, read_timestamp
+from .utils import ensure_dirs, TimestampFile, read_timestamp
 
 
 class SitesManager(object):
@@ -25,7 +25,6 @@ class SitesManager(object):
             for token in manager.tokens
         }
 
-    @as_list
     def load_sites(self):
         for site_dir in self.sites_dir.children():
             if not site_dir.isdir():

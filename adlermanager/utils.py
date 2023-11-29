@@ -1,21 +1,21 @@
-import attr
-import functools
-import rfc3339
-import dateutil.parser
 from datetime import datetime, timezone
+
+import attr
 from twisted.python.filepath import FilePath
+
+_blessed_date_format = "%Y-%m-%dT%H:%M:%S%z"
 
 
 @attr.s
 class TimestampFile(object):
-    path = attr.ib()
+    path: FilePath = attr.ib()
 
-    def set(self, time):
+    def set(self, time: datetime) -> None:
         with self.path.open("w") as f:
-            f.write(rfc3339.format(time).encode("utf-8"))
+            f.write(time.strftime(_blessed_date_format).encode("utf-8"))
 
     def now(self):
-        self.set(datetime.now(timezone.utc))
+        self.set(current_time())
 
     def getStr(self):
         if not self.path.exists():
@@ -23,35 +23,19 @@ class TimestampFile(object):
         with self.path.open("r") as f:
             return f.read().decode("utf-8")
 
-    def get(self):
-        d = self.getStr()
-        if d:
-            return dateutil.parser.parse(d)
-        return None
-
 
 def current_time():
     return datetime.now(timezone.utc)
 
 
 def current_timestamp():
-    return rfc3339.format(current_time())
+    return current_time().strftime(_blessed_date_format)
 
 
-def read_timestamp(s):
+def read_timestamp(s: str) -> datetime:
     # We drop nanoseconds as python does not support that
-    return datetime.strptime(f"{s.split('.')[0]}+00:00", "%Y-%m-%dT%H:%M:%S%z")
+    return datetime.strptime(f"{s.split('.')[0]}+00:00", _blessed_date_format)
 
 
-def ensure_dirs(path):
+def ensure_dirs(path: FilePath) -> None:
     path.makedirs(ignoreExistingDirectory=True)
-
-
-def as_list(f):
-    """Decorator that changes a generator into a function that returns a list."""
-
-    @functools.wraps(f)
-    def wrapper(*args, **kwargs):
-        return list(f(*args, **kwargs))
-
-    return wrapper

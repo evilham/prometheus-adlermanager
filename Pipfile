@@ -15,14 +15,12 @@ pyyaml = "*"
 klein = "*"
 "jinja2" = "*"
 markdown = "*"
-"rfc3339" = "*"
-python-dateutil = "*"
 
 [dev-packages]
-python-language-server = {extras = ["mccabe", "pyflakes", "rope"],version = "*"}
-pyls-mypy = "*"
-pyls-isort = "*"
-pyls-black = "*"
+flake8 = "*"
+bandit = "*"
+mypy = "*"
+isort = "*"
 
 [pipenv]
 allow_prereleases = true
