@@ -1,10 +1,14 @@
-from twisted.internet import reactor, task
-from twisted.web import resource
-
 import json
-from munch import Munch
+from typing import TYPE_CHECKING, Any, Dict, List
+
+from twisted.internet import reactor, task
+from twisted.web._responses import BAD_REQUEST, OK
+from twisted.web.server import Request
 
 from .TokenResource import TokenResource
+
+if TYPE_CHECKING:
+    from .SitesManager import SiteManager, SitesManager
 
 
 class AdlerManagerTokenResource(TokenResource):
@@ -14,19 +18,17 @@ class AdlerManagerTokenResource(TokenResource):
 
     HEADER = "Authorization"
 
-    def __init__(self, site_manager):
+    def __init__(self, sites_manager: "SitesManager"):
         """
         @param site_manager: The object managing state for all sites.
-        @type  site_manager: L{adlermanager.SiteManager}
+        @type  site_manager: L{adlermanager.SitesManager}
         """
-        TokenResource.__init__(self, tokens=site_manager.tokens)
+        TokenResource.__init__(self, tokens=sites_manager.tokens)
 
-        self.site_manager = site_manager
-
-    def preprocess_header(self, header):
+    def preprocess_header(self, header: str):
         return header.split(" ")[-1]
 
-    def processToken(self, token_data, request):
+    def processToken(self, token_data: "SiteManager", request: Request) -> int:
         """
         Pass Alerts along if Authorization Header matched.
 
@@ -38,12 +40,12 @@ class AdlerManagerTokenResource(TokenResource):
         """
 
         try:
-            request_body = request.content.read()
-            alert_data = [Munch.fromDict(alert) for alert in json.loads(request_body)]
-        except:
-            return False
+            request_body: bytes = request.content.read()  # type: ignore
+            alert_data: List[Dict[str, Any]] = json.loads(request_body)
+        except Exception:
+            return BAD_REQUEST
 
         site = token_data
 
-        task.deferLater(reactor, 0, site.process_alerts, alert_data)
-        return True
+        task.deferLater(reactor, 0, site.process_alerts, alert_data)  # type: ignore
+        return OK

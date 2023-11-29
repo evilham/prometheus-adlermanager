@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 
 import attr
+from twisted.internet import defer
+from twisted.python.failure import Failure
 from twisted.python.filepath import FilePath
 
 _blessed_date_format = "%Y-%m-%dT%H:%M:%S%z"
@@ -39,3 +41,14 @@ def read_timestamp(s: str) -> datetime:
 
 def ensure_dirs(path: FilePath) -> None:
     path.makedirs(ignoreExistingDirectory=True)
+
+
+def default_errback(failure: Failure) -> None:
+    failure.trap(defer.CancelledError)  # type: ignore
+    pass
+
+
+def noop_deferred() -> defer.Deferred[None]:
+    d: defer.Deferred[None] = defer.Deferred()
+    d.addErrback(default_errback)
+    return d

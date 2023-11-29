@@ -1,16 +1,20 @@
-from klein import Klein
-from twisted.web import resource, static
-from twisted.python.filepath import FilePath
-from twisted.logger import Logger
+# pyright: reportUnusedFunction=false
+from typing import cast
 
 import jinja2
 import markdown
+from klein import Klein
+from twisted.logger import Logger
+from twisted.python.filepath import FilePath
+from twisted.web import resource, static
+from twisted.web.server import Request
 
-from .Config import Config
 from .AdlerManagerTokenResource import AdlerManagerTokenResource
+from .Config import Config
+from .SitesManager import SiteManager, SitesManager
 
 
-def get_jinja_env(supportDir):
+def get_jinja_env(supportDir: str):
     """
     Return a L{jinja2.Environment} with templates loaded from:
       - Package
@@ -36,19 +40,21 @@ def get_jinja_env(supportDir):
         ),
         autoescape=True,
     )
-    templates.filters["markdown"] = lambda txt: jinja2.Markup(md.convert(txt))
+    templates.filters["markdown"] = lambda txt: jinja2.Markup(  # type: ignore
+        md.convert(txt)  # type: ignore
+    )
     return templates
 
 
-def web_root(sites_manager):
+def web_root(sites_manager: "SitesManager"):
     app = Klein()
     log = Logger()
 
-    @app.route("/")
-    def index(request):
+    @app.route("/")  # type: ignore
+    def index(request: Request):
         try:
-            host = request.getRequestHostname().decode("utf-8")
-        except:
+            host = cast(str, request.getRequestHostname().decode("utf-8"))
+        except Exception:
             return resource.ErrorPage(
                 400, "Bad cat", '<a href="http://http.cat/400">http://http.cat/400</a>'
             )
@@ -56,26 +62,30 @@ def web_root(sites_manager):
             return resource.ErrorPage(
                 404, "Gone cat", '<a href="http://http.cat/404">http://http.cat/404</a>'
             )
+        site: SiteManager
         try:
             site = sites_manager.site_managers[host]
-        except Exception as ex:
+        except Exception:
+            import traceback
+
+            traceback.print_stack()
             log.failure("sad cat")
             return resource.ErrorPage(
                 500, "Sad cat", '<a href="http://http.cat/500">http://http.cat/500</a>'
             )
 
-        site_path = FilePath(Config.data_dir).child("sites").child(host).path
+        site_path = cast(str, FilePath(Config.data_dir).child("sites").child(host).path)
         templates = get_jinja_env(site_path)
         template = templates.get_template("template.j2")
 
         return template.render(site=site)
 
-    @app.route("/api/v1/alerts", methods=["POST"])
-    def alert_handler(request):
+    @app.route("/api/v1/alerts", methods=["POST"])  # type: ignore
+    def alert_handler(request: Request):
         return AdlerManagerTokenResource(sites_manager)
 
-    @app.route("/static", branch=True)
-    def static_files(request):
+    @app.route("/static", branch=True)  # type: ignore
+    def static_files(request: Request):
         return static.File(Config.web_static_dir)
 
     return app.resource()

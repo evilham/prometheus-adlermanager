@@ -1,6 +1,7 @@
-import attr
 import os
 from datetime import timedelta
+
+import attr
 
 
 @attr.s
@@ -45,22 +46,22 @@ class ConfigClass(object):
            Default value: 60 (i.e. 1 hour).
     """
 
-    data_dir = attr.ib(default=os.getenv("DATA_DIR", "../data"))
+    data_dir: str = attr.ib(default=os.getenv("DATA_DIR", "../data"))
 
     # Web
-    web_endpoint = attr.ib(default=os.getenv("WEB_ENDPOINT", "unix:adler.socket"))
-    web_static_dir = attr.ib(default=os.getenv("WEB_STATIC_DIR", "../static"))
+    web_endpoint: str = attr.ib(default=os.getenv("WEB_ENDPOINT", "unix:adler.socket"))
+    web_static_dir: str = attr.ib(default=os.getenv("WEB_STATIC_DIR", "../static"))
 
     # SSH
-    ssh_enabled = attr.ib(default=os.getenv("SSH_ENABLED", b"") != b"")
-    ssh_endpoint = attr.ib(
+    ssh_enabled: bool = attr.ib(default=os.getenv("SSH_ENABLED", "") != "")
+    ssh_endpoint: str = attr.ib(
         default=os.getenv("SSH_ENDPOINT", r"tcp6:interface=\:\::port=2222")
     )
-    ssh_key_size = attr.ib(default=int(os.getenv("SSH_KEY_SIZE", "4096")))
-    ssh_keys_dir = attr.ib(default=os.getenv("SSH_KEYS_DIR", "../data/ssh"))
+    ssh_key_size: int = attr.ib(default=int(os.getenv("SSH_KEY_SIZE", "4096")))
+    ssh_keys_dir: str = attr.ib(default=os.getenv("SSH_KEYS_DIR", "../data/ssh"))
 
     # Alerts processing
-    new_incident_timeout = attr.ib(
+    new_incident_timeout: timedelta = attr.ib(
         default=timedelta(minutes=int(os.getenv("NEW_INCIDENT_TIMEOUT", "60")))
     )
 

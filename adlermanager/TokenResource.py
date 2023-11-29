@@ -1,6 +1,9 @@
-from twisted.web import server, resource
+from typing import Any, Dict
+
 from twisted.internet import defer
-from twisted.web._responses import *
+from twisted.web import resource, server
+from twisted.web._responses import INTERNAL_SERVER_ERROR, OK, UNAUTHORIZED
+from twisted.web.server import Request
 
 
 class TokenResource(resource.Resource):
@@ -16,14 +19,14 @@ class TokenResource(resource.Resource):
 
     HEADER = "Auth-Token"
 
-    def __init__(self, tokens=dict()):
+    def __init__(self, tokens: Dict[str, Any] = dict()):
         """
         @param tokens: The mapping of valid tokens to target objects.
         """
         resource.Resource.__init__(self)
         self.tokens = tokens
 
-    def render(self, request):
+    def render(self, request: Request):
         """
         See L{resource.Resource}.
 
@@ -38,13 +41,13 @@ class TokenResource(resource.Resource):
         if token_data is None:
             return self._unauthorized(request)
 
-        self._processToken(token_data, request)
+        self._processToken(token_data, request).addCallback(lambda x: request.finish())
         return server.NOT_DONE_YET
 
-    def preprocess_header(self, header):
+    def preprocess_header(self, header: str) -> str:
         return header
 
-    def processToken(self, token_data, request):
+    def processToken(self, token_data: Any, request: Request) -> int:
         """
         Process the token and write to request as needed.
 
@@ -57,10 +60,10 @@ class TokenResource(resource.Resource):
         @param token_data: The object associated with the passed token.
         @param request: The request object associated to this request.
         """
-        pass
+        return OK
 
     @defer.inlineCallbacks
-    def _processToken(self, token_data, request):
+    def _processToken(self, token_data: Any, request: Request):
         """
         Invoke L{TokenResource.processToken} and produce a 500 if it fails.
 
@@ -68,24 +71,25 @@ class TokenResource(resource.Resource):
         @param request: The request object associated to this request.
         """
         try:
-            success = yield defer.maybeDeferred(self.processToken, token_data, request)
-        except Exception as ex:
+            code: int = yield defer.maybeDeferred(
+                self.processToken, token_data, request
+            )
+        except Exception:
             import traceback
 
             traceback.print_stack()
-            success = False
-        request.setResponseCode(OK if success else INTERNAL_SERVER_ERROR)
-        request.finish()
-        defer.returnValue(success)
+            code = INTERNAL_SERVER_ERROR
+        request.setResponseCode(code)  # type: ignore
+        defer.returnValue(code)
 
-    def _unauthorized(self, request):
+    def _unauthorized(self, request: Request):
         """
         Send a 401 Unauthorized response.
 
         @param request: The request object associated to this request.
         """
-        request.setResponseCode(UNAUTHORIZED)
-        return self.unauthorizedPage().render(request)
+        request.setResponseCode(UNAUTHORIZED)  # type: ignore
+        return self.unauthorizedPage().render(request)  # type: ignore
 
     def unauthorizedPage(self):
         """
@@ -102,7 +106,7 @@ class TokenResource(resource.Resource):
         """
         return "Pass a valid token in the {} header.".format(self.HEADER)
 
-    def getChild(self, name, request):
+    def getChild(self, name: str, request: Request):
         """
         Use this child for everything but the explicitly overriden.
 

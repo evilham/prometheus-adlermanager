@@ -1,58 +1,48 @@
+from typing import Any, Dict, Generator, List, cast
+
 import attr
-import itertools
-from munch import Munch
-from twisted.python.filepath import FilePath
+import yaml
+from twisted.internet import defer, reactor, task
 from twisted.logger import Logger
-from twisted.internet import reactor, defer, task
+from twisted.python.filepath import FilePath
 
 from .Config import Config
-from .IncidentManager import IncidentManager, Severity
-
-from .utils import ensure_dirs, TimestampFile, read_timestamp
+from .IncidentManager import IncidentManager
+from .model import Alert, Severity
+from .utils import TimestampFile, default_errback, noop_deferred
 
 
 class SitesManager(object):
     log = Logger()
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.sites_dir = FilePath(Config.data_dir).child("sites")
         self.site_managers = {
             site: SiteManager(self.sites_dir.child(site)) for site in self.load_sites()
         }
-        self.tokens = {
+        self.tokens: Dict[str, SiteManager] = {
             token: manager
             for manager in self.site_managers.values()
             for token in manager.tokens
         }
 
-    def load_sites(self):
+    def load_sites(self) -> Generator[str, None, None]:
         for site_dir in self.sites_dir.children():
             if not site_dir.isdir():
                 continue
-            yield site_dir.basename()
-
-
-def import_alert(alert):
-    # Convert date data types
-    for att in ["startsAt", "endsAt"]:
-        if att in alert:
-            try:
-                alert[att] = read_timestamp(alert[att])
-            except:
-                del alert[att]
-    # Convert severity (needs date data)
-    alert.status = Severity.from_alert(alert)
-    return alert
+            yield cast(str, site_dir.basename())
 
 
 @attr.s
 class SiteManager(object):
-    path = attr.ib()
-    tokens = attr.ib(factory=list)
+    path: FilePath = attr.ib()
+    tokens: List[str] = attr.ib(factory=list)
     log = Logger()
     monitoring_is_down = attr.ib(default=False)
+    definition: Dict[str, Any] = attr.ib(factory=dict)
+    title = attr.ib(default="")
 
-    _timeout = attr.ib(factory=defer.Deferred)
+    _timeout: defer.Deferred[None] = attr.ib(factory=noop_deferred)
     site_name = attr.ib(default="")
     # TODO: Get monitoring timeout from config
     #       Default to 2 mins
@@ -60,25 +50,26 @@ class SiteManager(object):
 
     def __attrs_post_init__(self):
         self.load_definition()
+        self.title = self.definition["title"]
         self.load_tokens()
         self.last_updated = TimestampFile(self.path.child("last_updated.txt"))
         self.service_managers = [
-            ServiceManager(path=self.path.child(s.label), definition=s)
-            for s in self.definition.services
+            ServiceManager(path=self.path.child(s["label"]), definition=s)
+            for s in cast(List[Dict[str, Any]], self.definition.get("services", dict()))
         ]
         self.site_name = self.path.basename()
         self._timeout = task.deferLater(
-            reactor, self._timeout_seconds, self.monitoring_down
-        )
+            reactor, self._timeout_seconds, self.monitoring_down  # type: ignore
+        ).addErrback(default_errback)
 
-    def monitoring_down(self):
+    def monitoring_down(self) -> None:
         self.monitoring_is_down = True
         for manager in self.service_managers:
             manager.monitoring_down(self.last_updated.getStr())
 
     def load_definition(self):
         with self.path.child("site.yml").open("r") as f:
-            self.definition = Munch.fromYAML(f.read())
+            self.definition = yaml.safe_load(f)
 
     def load_tokens(self):
         tokens_file = self.path.child("tokens.txt")
@@ -86,34 +77,39 @@ class SiteManager(object):
             with open(tokens_file.path, "r") as f:
                 self.tokens = [line.strip() for line in f]
         if not self.tokens:
-            log.warn(
+            self.log.warn(
                 "Site {}: No tokens exist, "
-                "your site will never update".format(self.definition.title)
+                "your site will never update".format(self.title)
             )
 
-    def process_alerts(self, alerts):
+    def process_alerts(self, raw_alerts: List[Dict[str, Any]]):
         self.last_updated.now()
 
         self.monitoring_is_down = False
         self._timeout.cancel()
         self._timeout = task.deferLater(
-            reactor, self._timeout_seconds, self.monitoring_down
-        )
+            reactor, self._timeout_seconds, self.monitoring_down  # type: ignore
+        ).addErrback(default_errback)
 
         # Filter alerts for this site
-        alerts = [
-            import_alert(a)
-            for a in alerts
-            if a.get("labels", {}).get("adlermanager", "") == self.site_name
-        ]
+        alerts: List[Alert] = []
+        for ra in raw_alerts:
+            if (
+                ra.get("labels", {}).get("adlermanager", "") == self.site_name
+                and ra.get("labels", {}).get("component", "")
+                and ra.get("labels", {}).get("service", "")
+            ):
+                alerts.append(Alert.import_alert(ra))
 
-        heartbeats, filtered_alerts = [], []
+        heartbeats: List[Alert] = []
+        filtered_alerts: List[Alert] = []
         for a in alerts:
             (heartbeats if a.labels.get("heartbeat") else filtered_alerts).append(a)
 
+        timestamp = self.last_updated.getStr()
         for manager in self.service_managers:
-            manager.process_heartbeats(heartbeats, self.last_updated.getStr())
-            manager.process_alerts(filtered_alerts, self.last_updated.getStr())
+            manager.process_heartbeats(heartbeats, timestamp)
+            manager.process_alerts(filtered_alerts, timestamp)
 
     @property
     def status(self):
@@ -126,34 +122,39 @@ class SiteManager(object):
 
 @attr.s
 class ServiceManager(object):
-    path = attr.ib()
-    definition = attr.ib()
+    path: FilePath = attr.ib()
+    definition: Dict[str, Any] = attr.ib()
     current_incident = attr.ib(default=None)
-    component_labels = attr.ib(factory=list)
+    component_labels: List[str] = attr.ib(factory=list)
+    label = attr.ib(default="")
 
     log = Logger()
 
     def __attrs_post_init__(self):
+        self.label = self.definition["label"]
         # TODO: Recover status after server restart
         self.component_labels = [
-            component.label for component in self.definition.components
+            component["label"]
+            for component in cast(
+                List[Dict[str, Any]], self.definition.get("components", [])
+            )
         ]
 
-    def monitoring_down(self, timestamp):
+    def monitoring_down(self, timestamp: str) -> None:
         if self.current_incident:
             self.current_incident.monitoring_down(timestamp)
 
-    def process_heartbeats(self, heartbeats, timestamp):
+    def process_heartbeats(self, heartbeats: List[Alert], timestamp: str):
         if self.current_incident:
             self.current_incident.process_heartbeats(heartbeats, timestamp)
 
-    def process_alerts(self, alerts, timestamp):
+    def process_alerts(self, alerts: List[Alert], timestamp: str):
         # Filter by service-affecting alerts
         alerts = [
             alert
             for alert in alerts
-            if alert.labels.service == self.definition.label
-            and alert.labels.component in self.component_labels
+            if alert.labels.get("service") == self.label
+            and alert.labels.get("component") in self.component_labels
         ]
 
         if alerts and not self.current_incident:
@@ -167,7 +168,7 @@ class ServiceManager(object):
         if self.current_incident:
             self.current_incident.process_alerts(alerts, timestamp)
 
-    def resolve_incident(self):
+    def resolve_incident(self) -> None:
         self.current_incident = None
 
     @property
@@ -183,25 +184,23 @@ class ServiceManager(object):
             )
         return Severity.OK
 
-    @property
-    def past_incidents(self):
-        past = self.path.children().sort()
-        if self.current_incident and self.current_incident.path in past:
-            past.remove(self.current_incident.path)
-        past.reverse()  # Beautiful sleepless code poetry
-        # TODO: get limit from config?
-        return past[:5]
+    # @property
+    # def past_incidents(self):
+    #     past = self.path.children().sort()
+    #     if self.current_incident and self.current_incident.path in past:
+    #         past.remove(self.current_incident.path)
+    #     past.reverse()  # Beautiful sleepless code poetry
+    #     # TODO: get limit from config?
+    #     return past[:5]
 
     @property
-    def components(self):
+    def components(self) -> List[Dict[str, Any]]:
         return [
-            Munch.fromDict(
-                {
-                    "definition": component,
-                    "status": self.current_incident.component_status(component.label)
-                    if self.current_incident
-                    else Severity.OK,
-                }
-            )
-            for component in self.definition.components
+            {
+                "definition": component,
+                "status": self.current_incident.component_status(component["label"])
+                if self.current_incident
+                else Severity.OK,
+            }
+            for component in self.definition.get("components", [])
         ]

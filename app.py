@@ -11,7 +11,8 @@ from twisted.python.filepath import FilePath
 # Add current dir to path. Ugly but it works.
 import sys
 import os
-sys.path += [ os.path.dirname(os.path.realpath(__file__)) ]
+
+sys.path += [os.path.dirname(os.path.realpath(__file__))]
 
 from adlermanager import Config, SitesManager
 from adlermanager import web_root
@@ -19,7 +20,7 @@ from adlermanager import web_root
 if not FilePath(Config.data_dir).isdir():
     FilePath(Config.data_dir).createDirectory()
 
-application = service.Application('AdlerManager')
+application = service.Application("AdlerManager")
 serv_collection = service.IServiceCollection(application)
 
 # TokenResource
@@ -43,5 +44,6 @@ if Config.ssh_enabled:
         Config.ssh_endpoint,
         proto=AdlerManagerSSHProtocol,
         keyDir=Config.ssh_keys_dir,
-        keySize=Config.ssh_key_size)
+        keySize=Config.ssh_key_size,
+    )
     i.setServiceParent(serv_collection)

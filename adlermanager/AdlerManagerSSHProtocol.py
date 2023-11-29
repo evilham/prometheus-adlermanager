@@ -1,7 +1,6 @@
 import functools
 
 from .conch_helpers import SSHSimpleProtocol
-
 from .Config import Config
 
 

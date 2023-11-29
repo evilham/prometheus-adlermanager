@@ -10,7 +10,6 @@ python_version = "3"
 attrs = "*"
 twisted = {extras = ["conch"],version = "*"}
 service-identity = "*"
-munch = "*"
 pyyaml = "*"
 klein = "*"
 "jinja2" = "*"
@@ -21,6 +20,8 @@ flake8 = "*"
 bandit = "*"
 mypy = "*"
 isort = "*"
+types-markdown = "*"
+types-pyyaml = "*"
 
 [pipenv]
 allow_prereleases = true

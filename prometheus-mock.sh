@@ -23,7 +23,8 @@ curl -X POST \
       "severity":  "error"
     },
     "annotations": {
-      "summary": "This is a mock alert. Hello world!"
+      "summary": "Hello world!",
+      "description": "This is a mock alert"
     }
   }
 ]
