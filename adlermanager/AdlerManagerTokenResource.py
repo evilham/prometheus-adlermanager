@@ -1,3 +1,4 @@
+from twisted.internet import reactor, task
 from twisted.web import resource
 
 import json
@@ -44,5 +45,5 @@ class AdlerManagerTokenResource(TokenResource):
 
         site = token_data
 
-        site.process_alerts(alert_data)
+        task.deferLater(reactor, 0, site.process_alerts, alert_data)
         return True

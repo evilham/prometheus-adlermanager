@@ -84,7 +84,7 @@
 {%   for alertname in service_alerts.keys() %}
 {%     set alert = service_alerts[alertname] %}
           <li>
-            <strong class="text-{{ alert.status.css }}">{{ alertname }}</strong>
+            <strong class="text-{{ alert.status.css }}">{{ alert.annotations.summary if alert.annotations.summary else alertname }}</strong>
             {{ alert.annotations.description }}
           </li>
 {%   endfor %}

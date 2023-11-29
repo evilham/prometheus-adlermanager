@@ -30,8 +30,17 @@ class TimestampFile(object):
         return None
 
 
+def current_time():
+    return datetime.now(timezone.utc)
+
+
 def current_timestamp():
-    return rfc3339.format(datetime.now(timezone.utc))
+    return rfc3339.format(current_time())
+
+
+def read_timestamp(s):
+    # We drop nanoseconds as python does not support that
+    return datetime.strptime(f"{s.split('.')[0]}+00:00", "%Y-%m-%dT%H:%M:%S%z")
 
 
 def ensure_dirs(path):

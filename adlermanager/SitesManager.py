@@ -1,4 +1,5 @@
 import attr
+import itertools
 from munch import Munch
 from twisted.python.filepath import FilePath
 from twisted.logger import Logger
@@ -7,7 +8,7 @@ from twisted.internet import reactor, defer, task
 from .Config import Config
 from .IncidentManager import IncidentManager, Severity
 
-from .utils import ensure_dirs, TimestampFile, as_list
+from .utils import ensure_dirs, TimestampFile, as_list, read_timestamp
 
 
 class SitesManager(object):
@@ -32,6 +33,19 @@ class SitesManager(object):
             yield site_dir.basename()
 
 
+def import_alert(alert):
+    # Convert date data types
+    for att in ["startsAt", "endsAt"]:
+        if att in alert:
+            try:
+                alert[att] = read_timestamp(alert[att])
+            except:
+                del alert[att]
+    # Convert severity (needs date data)
+    alert.status = Severity.from_alert(alert)
+    return alert
+
+
 @attr.s
 class SiteManager(object):
     path = attr.ib()
@@ -40,17 +54,23 @@ class SiteManager(object):
     monitoring_is_down = attr.ib(default=False)
 
     _timeout = attr.ib(factory=defer.Deferred)
+    site_name = attr.ib(default="")
+    # TODO: Get monitoring timeout from config
+    #       Default to 2 mins
+    _timeout_seconds = 2 * 60
 
     def __attrs_post_init__(self):
         self.load_definition()
         self.load_tokens()
         self.last_updated = TimestampFile(self.path.child("last_updated.txt"))
         self.service_managers = [
-            ServiceManager(self.path.child(s.name), s) for s in self.definition.services
+            ServiceManager(path=self.path.child(s.label), definition=s)
+            for s in self.definition.services
         ]
-        # TODO: Get monitoring timeout from config
-        #       Default to 5 mins
-        self._timeout = task.deferLater(reactor, 5 * 60, self.monitoring_down)
+        self.site_name = self.path.basename()
+        self._timeout = task.deferLater(
+            reactor, self._timeout_seconds, self.monitoring_down
+        )
 
     def monitoring_down(self):
         self.monitoring_is_down = True
@@ -75,30 +95,26 @@ class SiteManager(object):
     def process_alerts(self, alerts):
         self.last_updated.now()
 
-        # TODO: Get monitoring timeout from config
-        #       Default to 5 mins
         self.monitoring_is_down = False
         self._timeout.cancel()
-        self._timeout = task.deferLater(reactor, 5 * 60, self.monitoring_down)
+        self._timeout = task.deferLater(
+            reactor, self._timeout_seconds, self.monitoring_down
+        )
 
-        for alert in alerts:
-            alert.status = Severity.from_string(alert.labels.get("severity", "OK"))
-        # TODO document the heartbeat awfulness somewhere
-        # TODO: search for a list-splitting function this way:
-        heartbeats = [
-            alert
-            for alert in alerts
-            if alert.labels.get("alertname") == "EverythingIsFine"
-        ]
+        # Filter alerts for this site
         alerts = [
-            alert
-            for alert in alerts
-            if alert.labels.get("alertname") != "EverythingIsFine"
+            import_alert(a)
+            for a in alerts
+            if a.get("labels", {}).get("adlermanager", "") == self.site_name
         ]
+
+        heartbeats, filtered_alerts = [], []
+        for a in alerts:
+            (heartbeats if a.labels.get("heartbeat") else filtered_alerts).append(a)
 
         for manager in self.service_managers:
             manager.process_heartbeats(heartbeats, self.last_updated.getStr())
-            manager.process_alerts(alerts, self.last_updated.getStr())
+            manager.process_alerts(filtered_alerts, self.last_updated.getStr())
 
     @property
     def status(self):
@@ -114,14 +130,14 @@ class ServiceManager(object):
     path = attr.ib()
     definition = attr.ib()
     current_incident = attr.ib(default=None)
-    component_names = attr.ib(factory=list)
+    component_labels = attr.ib(factory=list)
 
     log = Logger()
 
     def __attrs_post_init__(self):
         # TODO: Recover status after server restart
-        self.component_names = [
-            component.name for component in self.definition.components
+        self.component_labels = [
+            component.label for component in self.definition.components
         ]
 
     def monitoring_down(self, timestamp):
@@ -134,9 +150,11 @@ class ServiceManager(object):
 
     def process_alerts(self, alerts, timestamp):
         # Filter by service-affecting alerts
-        # TODO: Use a "component" label instead of alertname
         alerts = [
-            alert for alert in alerts if alert.labels.alertname in self.component_names
+            alert
+            for alert in alerts
+            if alert.labels.service == self.definition.label
+            and alert.labels.component in self.component_labels
         ]
 
         if alerts and not self.current_incident:
@@ -181,7 +199,7 @@ class ServiceManager(object):
             Munch.fromDict(
                 {
                     "definition": component,
-                    "status": self.current_incident.component_status(component.name)
+                    "status": self.current_incident.component_status(component.label)
                     if self.current_incident
                     else Severity.OK,
                 }

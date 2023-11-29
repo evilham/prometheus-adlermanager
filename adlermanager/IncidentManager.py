@@ -9,7 +9,7 @@ from twisted.python.filepath import FilePath
 from twisted.internet import reactor, defer, task
 
 from .Config import Config
-from .utils import ensure_dirs, TimestampFile, current_timestamp
+from .utils import ensure_dirs, TimestampFile, current_time, current_timestamp
 
 FILENAME_TIME_FORMAT = "%Y-%m-%d-%H%MZ"
 
@@ -27,8 +27,18 @@ class Severity(IntEnum):
             "ok": cls.OK,
             "warning": cls.WARNING,
             "error": cls.ERROR,
+            "critical": cls.ERROR,
         }
         return labels[s.lower()]
+
+    @classmethod
+    def from_alert(cls, alert):
+        try:
+            if "endsAt" in alert and alert.endsAt <= current_time():
+                return Severity.OK
+        except:
+            pass
+        return Severity.from_string(alert.labels.get("severity", "OK"))
 
     @property
     def css(self):
@@ -55,8 +65,8 @@ class IncidentManager(object):
     # TODO: Get IncidentClosing timeout from settings?
     #       Defaulting to 30m
     _monitoring_grace_period = attr.ib(default=60 * 30)
-    #       Defaulting to 5m
-    _alertExpireTime = attr.ib(default=5 * 60)
+    #       Defaulting to 5m as alertmanager
+    _alert_resolve_timeout = attr.ib(default=5 * 60)
 
     def process_heartbeats(self, heartbeats, timestamp):
         if heartbeats:
@@ -80,14 +90,20 @@ class IncidentManager(object):
         new_alerts = dict()
 
         for alert in alerts:
-            alertname = alert.labels.alertname
-            if alertname in self._alert_timeouts:
-                self._alert_timeouts[alertname].cancel()
+            alert_label = alert.labels.component
+            if alert_label in self._alert_timeouts:
+                self._alert_timeouts[alert_label].cancel()
             else:
-                new_alerts[alertname] = alert
-            self.active_alerts[alertname] = alert
-            self._alert_timeouts[alertname] = task.deferLater(
-                reactor, self._alertExpireTime, self._expire_alert, alertname
+                new_alerts[alert_label] = alert
+            # Use highest known severity for a given incident
+            # We also allow Resolved alert notifications
+            if (
+                alert.status == Severity.OK
+                or alert.status >= self.active_alerts.get(alert_label, alert).status
+            ):
+                self.active_alerts[alert_label] = alert
+            self._alert_timeouts[alert_label] = task.deferLater(
+                reactor, self._alert_resolve_timeout, self._expire_alert, alert_label
             )
 
         if new_alerts:
@@ -122,12 +138,12 @@ class IncidentManager(object):
             m = Munch.fromDict({"log": self._logs, "timestamp": timestamp})
             f.write(m.toYAML().encode("utf-8"))
 
-    def component_status(self, component):
+    def component_status(self, component_label):
         return max(
             (
                 alert.status
                 for alert in self.active_alerts.values()
-                if alert.labels.alertname == component
+                if alert.labels.component == component_label
             ),
             default=Severity.OK,
         )
