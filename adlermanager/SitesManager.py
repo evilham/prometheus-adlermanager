@@ -168,7 +168,7 @@ class ServiceManager(object):
         if self.current_incident:
             self.current_incident.process_alerts(alerts, timestamp)
 
-    def resolve_incident(self) -> None:
+    def resolve_incident(self, _: Any) -> None:
         self.current_incident = None
 
     @property
