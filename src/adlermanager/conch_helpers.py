@@ -1,6 +1,9 @@
+from typing import Any, Callable, Dict, Optional, Tuple, Union
+
 from zope.interface import implementer
 
-from twisted.application import service, strports
+from twisted.application import strports
+from twisted.application.internet import StreamServerEndpointService
 from twisted.conch import avatar, interfaces as conchinterfaces, manhole_ssh, recvline
 from twisted.conch.checkers import (
     IAuthorizedKeysDB,
@@ -15,10 +18,19 @@ from twisted.python import filepath
 
 
 class SSHSimpleProtocol(recvline.HistoricRecvLine):
-    def __init__(self, user):
+    terminal: insults.ServerProtocol
+    keyHandlers: Dict[bytes, Callable[[], None]]
+
+    def __init__(self, user: "SSHSimpleAvatar"):
         recvline.HistoricRecvLine.__init__(self)
         self.user = user
         self.ps = (b"", b"")
+
+    def terminal_write(self, msg: Union[bytes, str]) -> None:
+        """
+        We use this method to work around awkward typing in t.c.insults.
+        """
+        return self.terminal.write(msg)  # type: ignore
 
     def connectionMade(self):
         recvline.HistoricRecvLine.connectionMade(self)
@@ -27,14 +39,14 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         # CTRL_BACKSLASH
         self.keyHandlers[b"\x1c"] = self.handle_QUIT
 
-        self.terminal.write(self.motd())
+        self.terminal_write(self.motd())
         self.terminal.nextLine()
 
         self.showPrompt()
 
     def handle_EOF(self):
-        if self.lineBuffer:
-            self.terminal.write(b"\a")
+        if self.lineBuffer:  # type: ignore
+            self.terminal_write(b"\a")
         else:
             self.handle_QUIT()
 
@@ -42,9 +54,9 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         self.terminal.loseConnection()
 
     def showPrompt(self):
-        self.terminal.write(">>> ")
+        self.terminal_write(">>> ")
 
-    def _getCommand(self, cmd):
+    def _getCommand(self, cmd: bytes):
         """
         Get the method that would be run by 'cmd' if appliable.
 
@@ -53,40 +65,40 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         try:
             cmd_str = cmd.decode("utf-8")
             return getattr(self, "do_" + cmd_str, None)
-        except:
+        except Exception:
             return None
 
-    def lineReceived(self, line):
-        line = line.strip().split()
-        if line:
-            cmd, *args = line
+    def lineReceived(self, line: bytes):
+        line_parts = line.strip().split()
+        if line_parts:
+            cmd, *args = line_parts
             func = self._getCommand(cmd)
             if func:
                 try:
                     func(*args)
                 except Exception as ex:
-                    self.terminal.write("Error: {}".format(ex))
+                    self.terminal_write("Error: {}".format(ex))
             else:
-                self.terminal.write(b"No such command: " + cmd)
+                self.terminal_write(b"No such command: " + cmd)
                 self.terminal.nextLine()
         self.showPrompt()
 
-    def do_help(self, cmd=""):
+    def do_help(self, cmd: bytes = b""):
         """
         Get help on a command. Usage: help command
         """
         if cmd:
             func = self._getCommand(cmd)
             if func:
-                self.terminal.write(func.__doc__)
+                self.terminal_write(func.__doc__)
             else:
-                self.terminal.write("No such command: {}".format(cmd))
+                self.terminal_write(b"No such command: " + cmd)
         else:
-            self.terminal.write("Available commands:")
+            self.terminal_write("Available commands:")
             self.terminal.nextLine()
             self.terminal.nextLine()
-            for cmd in (attr[3:] for attr in dir(self) if attr.startswith("do_")):
-                self.terminal.write(cmd)
+            for c in (attr[3:] for attr in dir(self) if attr.startswith("do_")):
+                self.terminal_write(c)
                 self.terminal.nextLine()
         self.terminal.nextLine()
 
@@ -94,7 +106,7 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         """
         Prints your username. Usage: whoami
         """
-        self.terminal.write(self.user.username)
+        self.terminal_write(self.user.username)
         self.terminal.nextLine()
 
     def do_clear(self):
@@ -115,22 +127,30 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
 
 @implementer(conchinterfaces.ISession)
 class SSHSimpleAvatar(avatar.ConchUser):
-    def __init__(self, username, proto):
+    def __init__(self, username: bytes, proto: SSHSimpleProtocol):
         avatar.ConchUser.__init__(self)
 
         self.username = username
         self.proto = proto
-        self.channelLookup.update({b"session": session.SSHSession})
+        self.channelLookup.update({b"session": session.SSHSession})  # type: ignore
 
-    def openShell(self, protocol):
+    def openShell(self, protocol: SSHSimpleProtocol):
         serverProtocol = insults.ServerProtocol(self.proto, self)
-        serverProtocol.makeConnection(protocol)
-        protocol.makeConnection(session.wrapProtocol(serverProtocol))
+        serverProtocol.makeConnection(protocol)  # type: ignore
+        protocol.makeConnection(session.wrapProtocol(serverProtocol))  # type: ignore
 
-    def getPty(self, terminal, windowSize, attrs):
+    def getPty(self, terminal, windowSize, attrs):  # type: ignore
         return None
 
-    def execCommand(self, protocol, cmd):
+    def execCommand(self, protocol, cmd):  # type: ignore
+        pass
+
+    def windowChanged(self, dimensions: Tuple[int, int, int, int]):  # type: ignore
+        """This gets triggered when user changes terminal dimensions.
+
+        Args:
+            dimensions (Tuple[int, int, int, int]): Probably height, width and "0, 0"
+        """
         pass
 
     def closed(self):
@@ -148,7 +168,7 @@ class SSHSimpleRealm:
     @ivar proto: The passed protocol class that will be used for avatar.
     """
 
-    def __init__(self, proto):
+    def __init__(self, proto: SSHSimpleProtocol):
         """
         Initialise a new L{SSHSimpleRealm} with proto as a protocol class.
 
@@ -156,7 +176,7 @@ class SSHSimpleRealm:
         """
         self.proto = proto
 
-    def requestAvatar(self, avatarId, mind, *interfaces):
+    def requestAvatar(self, avatarId: bytes, mind: Any, *interfaces: Any):
         """
         Return a L{SSHSimpleAvatar} that uses ``self.proto`` as protocol.
 
@@ -182,7 +202,11 @@ class SSHKeyDirectory(object):
     @ivar baseDir: the base directory for key lookup.
     """
 
-    def __init__(self, baseDir, parseKey=keys.Key.fromString):
+    def __init__(
+        self,
+        baseDir: filepath.FilePath[str],
+        parseKey: Any = keys.Key.fromString,  # type: ignore
+    ) -> None:
         """
         Initialises a new L{SSHKeyDirectory}.
 
@@ -192,11 +216,9 @@ class SSHKeyDirectory(object):
         self.baseDir = baseDir
         self.parseKey = parseKey
 
-    def getAuthorizedKeys(self, username):
-        userKeys = []
+    def getAuthorizedKeys(self, username: bytes):
         keyFile = self.baseDir.child(username + b".key")
         keyDir = self.baseDir.child(username)
-        print(keyFile, keyDir)
 
         if keyFile.isfile():
             for key in readAuthorizedKeyFile(keyFile.open(), self.parseKey):
@@ -208,7 +230,13 @@ class SSHKeyDirectory(object):
                     yield key
 
 
-def conch_helper(endpoint, proto=None, namespace=dict(), keyDir=None, keySize=4096):
+def conch_helper(
+    endpoint: str,
+    proto: Optional[SSHSimpleProtocol] = None,
+    namespace: Dict[str, str] = dict(),
+    keyDir: Optional[str] = None,
+    keySize: int = 4096,
+) -> StreamServerEndpointService:
     """
     Return a L{SSHKeyDirectory} based SSH service with the given parameters.
 
@@ -226,25 +254,29 @@ def conch_helper(endpoint, proto=None, namespace=dict(), keyDir=None, keySize=40
 
         keyDir = getDataDirectory()
 
-    keyDir = filepath.FilePath(keyDir)
-    keyDir.child("server").makedirs(True)
-    keyDir.child("users").makedirs(True)
+    ssh_keys_dir = filepath.FilePath(keyDir)
+    ssh_keys_dir.child("server").makedirs(True)
+    ssh_keys_dir.child("users").makedirs(True)
 
-    checker = SSHPublicKeyChecker(SSHKeyDirectory(keyDir.child("users")))
+    checker = SSHPublicKeyChecker(
+        SSHKeyDirectory(ssh_keys_dir.child("users"))  # type: ignore
+    )
 
     if proto is None:
         sshRealm = manhole_ssh.TerminalRealm()
-        sshRealm.chainedProtocolFactory = chainedProtocolFactory(namespace)
+        sshRealm.chainedProtocolFactory = chainedProtocolFactory(  # type: ignore
+            namespace
+        )
     else:
-        sshRealm = SSHSimpleRealm(proto)
-    sshPortal = portal.Portal(sshRealm, [checker])
+        sshRealm = SSHSimpleRealm(proto)  # type: ignore
+    sshPortal = portal.Portal(sshRealm, [checker])  # type: ignore
 
-    sshKeyPath = keyDir.child("server").child("server.key")
-    sshKey = keys._getPersistentRSAKey(sshKeyPath, keySize)
+    sshKeyPath = ssh_keys_dir.child("server").child("server.key")
+    sshKey = keys._getPersistentRSAKey(sshKeyPath, keySize)  # type: ignore
 
     sshFactory = manhole_ssh.ConchFactory(sshPortal)
-    sshFactory.publicKeys[b"ssh-rsa"] = sshKey
-    sshFactory.privateKeys[b"ssh-rsa"] = sshKey
+    sshFactory.publicKeys[b"ssh-rsa"] = sshKey  # type: ignore
+    sshFactory.privateKeys[b"ssh-rsa"] = sshKey  # type: ignore
 
-    sshService = strports.service(endpoint, sshFactory)
+    sshService = strports.service(endpoint, sshFactory)  # type: ignore
     return sshService

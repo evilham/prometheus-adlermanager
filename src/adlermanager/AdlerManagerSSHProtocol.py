@@ -1,13 +1,17 @@
 import functools
+import json
+from typing import TYPE_CHECKING
 
-from .conch_helpers import SSHSimpleProtocol
-from .Config import Config
+from .conch_helpers import SSHSimpleAvatar, SSHSimpleProtocol
+
+if TYPE_CHECKING:
+    from adlermanager.SitesManager import SitesManager
 
 
 class AdlerManagerSSHProtocol(SSHSimpleProtocol):
-    sites_manager = None
+    sites_manager: "SitesManager"
 
-    def __init__(self, user):
+    def __init__(self, user: SSHSimpleAvatar):
         """
         Create an instance of AdlerManagerSSHProtocol.
         """
@@ -15,31 +19,16 @@ class AdlerManagerSSHProtocol(SSHSimpleProtocol):
 
         # TODO: Do stuff like getting user sites, showing alert warnings, etc.
 
-    def do_add_token(self, token_id):
+    def do_tmp_dump_state(self):
         """
-        TODO: think better API (Identify site?)
-
-        Add and generate a token. Usage: add_token TOKEN_ID
-
-          - TOKEN_ID:
-              Will be used to differentiate tokens. May be shown on the site.
+        This command is temporary and just dumps all known state.
         """
-        person_id = self.user.username
-
-        # Everything is bytes, we have to go back to unicode before
-        try:
-            token_id = token_id.decode("utf-8")
-            person = person.decode("utf-8")
-            person_id = person_id.decode("utf-8")
-        except:
-            self.terminal.write("Could not decode your arguments.")
-            self.terminal.nextLine()
-            return
-
-        token = self.sites_manager.add_token(
-            token_id,
-        )
-        self.terminal.write("Your new Token is: {}".format(token))
+        for k, sm in self.sites_manager.site_managers.items():
+            self.terminal_write(f"\n#\n# {k}\n#\n")
+            for srv in sm.service_managers:
+                self.terminal_write(f"## {srv.label}\n")
+                self.terminal_write(json.dumps(srv.components))
+                self.terminal.nextLine()
         self.terminal.nextLine()
 
     @functools.lru_cache()  # we don't need to re-read every time
