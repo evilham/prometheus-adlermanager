@@ -1,0 +1,31 @@
+variables:
+  pyimage: &pyimage 'python:3.11-slim-bullseye'
+  pysteps: &pysteps
+   - pip install pipenv
+   - pipenv install --dev
+  pyenv: &pyenv
+    - PYTHONPATH=./app
+    - MYPYPATH=./app
+
+steps:
+  black:
+    image: *pyimage
+    group: linters
+    commands:
+      - <<: *pysteps
+      - pipenv run black src --check
+    environment: *pyenv
+  flake8:
+    image: *pyimage
+    group: linters
+    commands:
+      - <<: *pysteps
+      - pipenv run flake8 src
+    environment: *pyenv
+  mypy:
+    image: *pyimage
+    group: linters
+    commands:
+      - <<: *pysteps
+      - pipenv run mypy -m adlermanager
+    environment: *pyenv
