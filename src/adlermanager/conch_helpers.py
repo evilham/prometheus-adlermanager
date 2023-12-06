@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union, cast
 
 from zope.interface import implementer
 
@@ -14,16 +14,19 @@ from twisted.conch.insults import insults
 from twisted.conch.manhole_tap import chainedProtocolFactory
 from twisted.conch.ssh import keys, session
 from twisted.cred import portal
-from twisted.python import filepath
+from twisted.internet.error import ProcessTerminated
+from twisted.python import failure, filepath
 
 
 class SSHSimpleProtocol(recvline.HistoricRecvLine):
     terminal: insults.ServerProtocol
     keyHandlers: Dict[bytes, Callable[[], None]]
+    interactive: bool = True
 
-    def __init__(self, user: "SSHSimpleAvatar"):
+    def __init__(self, user: "SSHSimpleAvatar", interactive: bool = True):
         recvline.HistoricRecvLine.__init__(self)
         self.user = user
+        self.interactive = interactive
         self.ps = (b"", b"")
 
     def terminal_write(self, msg: Union[bytes, str]) -> None:
@@ -34,6 +37,8 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
 
     def connectionMade(self):
         recvline.HistoricRecvLine.connectionMade(self)
+        if not self.interactive:
+            return
         # CTRL_D
         self.keyHandlers[b"\x04"] = self.handle_EOF
         # CTRL_BACKSLASH
@@ -48,15 +53,16 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         if self.lineBuffer:  # type: ignore
             self.terminal_write(b"\a")
         else:
-            self.handle_QUIT()
+            self.exitWithCode(0)
 
     def handle_QUIT(self):
         self.terminal.loseConnection()
 
     def showPrompt(self):
-        self.terminal_write(">>> ")
+        if self.interactive:
+            self.terminal_write(">>> ")
 
-    def _getCommand(self, cmd: bytes):
+    def _getCommand(self, cmd: bytes) -> Optional[Callable[..., None]]:
         """
         Get the method that would be run by 'cmd' if appliable.
 
@@ -68,20 +74,40 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         except Exception:
             return None
 
-    def lineReceived(self, line: bytes):
+    def runCommand(self, cmd: bytes, *args: bytes) -> None:
+        """
+        Run the requested command or print 'No such command'.
+        """
+        func = self._getCommand(cmd)
+        if func:
+            try:
+                func(*args)
+                if not self.interactive:
+                    self.exitWithCode(0)
+            except Exception as ex:
+                self.terminal_write("Error: {}".format(ex))
+                if not self.interactive:
+                    self.exitWithCode(2)
+        else:
+            self.terminal_write(b"No such command: " + cmd)
+            self.terminal.nextLine()
+            if not self.interactive:
+                self.exitWithCode(1)
+
+    def runLine(self, line: bytes) -> None:
         line_parts = line.strip().split()
         if line_parts:
             cmd, *args = line_parts
-            func = self._getCommand(cmd)
-            if func:
-                try:
-                    func(*args)
-                except Exception as ex:
-                    self.terminal_write("Error: {}".format(ex))
-            else:
-                self.terminal_write(b"No such command: " + cmd)
-                self.terminal.nextLine()
+            return self.runCommand(cmd, *args)
+
+    def lineReceived(self, line: bytes) -> None:
+        self.runLine(line)
         self.showPrompt()
+
+    def exitWithCode(self, code: int) -> None:
+        cast(session.SSHSessionProcessProtocol, self.terminal.transport).processEnded(
+            failure.Failure(ProcessTerminated(code, None, None))
+        )
 
     def do_help(self, cmd: bytes = b""):
         """
@@ -90,7 +116,9 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         if cmd:
             func = self._getCommand(cmd)
             if func:
-                self.terminal_write(func.__doc__)
+                self.terminal_write(
+                    getattr(func, "__doc__", b"No help for '" + cmd + b"'")
+                )
             else:
                 self.terminal_write(b"No such command: " + cmd)
         else:
@@ -119,7 +147,7 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         """
         Exit session. Usage: exit
         """
-        self.handle_QUIT()
+        self.exitWithCode(0)
 
     def motd(self):
         return ""
@@ -134,7 +162,7 @@ class SSHSimpleAvatar(avatar.ConchUser):
         self.proto = proto
         self.channelLookup.update({b"session": session.SSHSession})  # type: ignore
 
-    def openShell(self, protocol: SSHSimpleProtocol):
+    def openShell(self, protocol: session.SSHSessionProcessProtocol):
         serverProtocol = insults.ServerProtocol(self.proto, self)
         serverProtocol.makeConnection(protocol)  # type: ignore
         protocol.makeConnection(session.wrapProtocol(serverProtocol))  # type: ignore
@@ -142,8 +170,15 @@ class SSHSimpleAvatar(avatar.ConchUser):
     def getPty(self, terminal, windowSize, attrs):  # type: ignore
         return None
 
-    def execCommand(self, protocol, cmd):  # type: ignore
-        pass
+    def execCommand(
+        self, protocol: session.SSHSessionProcessProtocol, line: bytes
+    ) -> None:
+        serverProtocol = insults.ServerProtocol(self.proto, self, interactive=False)
+        serverProtocol.makeConnection(protocol)  # type: ignore
+        protocol.makeConnection(session.wrapProtocol(serverProtocol))  # type: ignore
+        cast(
+            SSHSimpleProtocol, serverProtocol.terminalProtocol  # type: ignore
+        ).runLine(line)
 
     def windowChanged(self, dimensions: Tuple[int, int, int, int]):  # type: ignore
         """This gets triggered when user changes terminal dimensions.

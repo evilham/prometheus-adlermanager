@@ -11,11 +11,11 @@ if TYPE_CHECKING:
 class AdlerManagerSSHProtocol(SSHSimpleProtocol):
     sites_manager: "SitesManager"
 
-    def __init__(self, user: SSHSimpleAvatar):
+    def __init__(self, user: SSHSimpleAvatar, interactive: bool = True):
         """
         Create an instance of AdlerManagerSSHProtocol.
         """
-        SSHSimpleProtocol.__init__(self, user)
+        SSHSimpleProtocol.__init__(self, user, interactive=interactive)
 
         # TODO: Do stuff like getting user sites, showing alert warnings, etc.
 
