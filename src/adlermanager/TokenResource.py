@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Generator, Union, cast
 
 from twisted.internet import defer
 from twisted.web import resource, server
@@ -26,7 +26,7 @@ class TokenResource(resource.Resource):
         resource.Resource.__init__(self)
         self.tokens = tokens
 
-    def render(self, request: Request):
+    def render(self, request: Request) -> Union[bytes, int]:
         """
         See L{resource.Resource}.
 
@@ -41,7 +41,9 @@ class TokenResource(resource.Resource):
         if token_data is None:
             return self._unauthorized(request)
 
-        self._processToken(token_data, request).addCallback(lambda x: request.finish())
+        self._processToken(token_data, request).addCallback(  # type: ignore
+            lambda x: request.finish()
+        )
         return server.NOT_DONE_YET
 
     def preprocess_header(self, header: str) -> str:
@@ -63,7 +65,9 @@ class TokenResource(resource.Resource):
         return OK
 
     @defer.inlineCallbacks
-    def _processToken(self, token_data: Any, request: Request):
+    def _processToken(
+        self, token_data: Any, request: Request
+    ) -> Generator[defer.Deferred[int], None, None]:
         """
         Invoke L{TokenResource.processToken} and produce a 500 if it fails.
 
@@ -71,9 +75,8 @@ class TokenResource(resource.Resource):
         @param request: The request object associated to this request.
         """
         try:
-            code: int = yield defer.maybeDeferred(
-                self.processToken, token_data, request
-            )
+            res = yield defer.maybeDeferred(self.processToken, token_data, request)
+            code: int = cast(int, res)
         except Exception:
             import traceback
 
@@ -82,7 +85,7 @@ class TokenResource(resource.Resource):
         request.setResponseCode(code)  # type: ignore
         defer.returnValue(code)
 
-    def _unauthorized(self, request: Request):
+    def _unauthorized(self, request: Request) -> bytes:
         """
         Send a 401 Unauthorized response.
 
@@ -91,7 +94,7 @@ class TokenResource(resource.Resource):
         request.setResponseCode(UNAUTHORIZED)  # type: ignore
         return self.unauthorizedPage().render(request)  # type: ignore
 
-    def unauthorizedPage(self):
+    def unauthorizedPage(self) -> resource.ErrorPage:
         """
         Page to render when there is no valid token.
         This makes use of L{TokenResource.unauthorizedMessage} by default.
@@ -100,13 +103,13 @@ class TokenResource(resource.Resource):
             UNAUTHORIZED, "Unauthorized", self.unauthorizedMessage()
         )
 
-    def unauthorizedMessage(self):
+    def unauthorizedMessage(self) -> str:
         """
         Message to show when there is no valid token.
         """
         return "Pass a valid token in the {} header.".format(self.HEADER)
 
-    def getChild(self, name: str, request: Request):
+    def getChild(self, name: str, request: Request) -> "TokenResource":
         """
         Use this child for everything but the explicitly overriden.
 

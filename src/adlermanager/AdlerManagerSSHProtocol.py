@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 class AdlerManagerSSHProtocol(SSHSimpleProtocol):
     sites_manager: "SitesManager"
 
-    def __init__(self, user: SSHSimpleAvatar, interactive: bool = True):
+    def __init__(self, user: SSHSimpleAvatar, interactive: bool = True) -> None:
         """
         Create an instance of AdlerManagerSSHProtocol.
         """
@@ -19,7 +19,7 @@ class AdlerManagerSSHProtocol(SSHSimpleProtocol):
 
         # TODO: Do stuff like getting user sites, showing alert warnings, etc.
 
-    def do_tmp_dump_state(self):
+    def do_tmp_dump_state(self) -> None:
         """
         This command is temporary and just dumps all known state.
         """
@@ -32,6 +32,6 @@ class AdlerManagerSSHProtocol(SSHSimpleProtocol):
         self.terminal.nextLine()
 
     @functools.lru_cache()  # we don't need to re-read every time
-    def motd(self):
+    def motd(self) -> str:
         # TODO: Use data location?
         return open("motd.txt").read()

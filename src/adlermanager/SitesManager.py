@@ -1,4 +1,4 @@
-from typing import Any, Dict, Generator, List, cast
+from typing import Any, Dict, Generator, List, Optional, cast
 
 import attr
 import yaml
@@ -38,17 +38,17 @@ class SiteManager(object):
     path: FilePath = attr.ib()
     tokens: List[str] = attr.ib(factory=list)
     log = Logger()
-    monitoring_is_down = attr.ib(default=False)
+    monitoring_is_down: bool = attr.ib(default=False)
     definition: Dict[str, Any] = attr.ib(factory=dict)
-    title = attr.ib(default="")
+    title: str = attr.ib(default="")
 
     _timeout: defer.Deferred[None] = attr.ib(factory=noop_deferred)
-    site_name = attr.ib(default="")
+    site_name: str = attr.ib(default="")
     # TODO: Get monitoring timeout from config
     #       Default to 2 mins
     _timeout_seconds = 2 * 60
 
-    def __attrs_post_init__(self):
+    def __attrs_post_init__(self) -> None:
         self.load_definition()
         self.title = self.definition["title"]
         self.load_tokens()
@@ -67,11 +67,11 @@ class SiteManager(object):
         for manager in self.service_managers:
             manager.monitoring_down(self.last_updated.getStr())
 
-    def load_definition(self):
+    def load_definition(self) -> None:
         with self.path.child("site.yml").open("r") as f:
             self.definition = yaml.safe_load(f)
 
-    def load_tokens(self):
+    def load_tokens(self) -> None:
         tokens_file = self.path.child("tokens.txt")
         if tokens_file.exists():
             with open(tokens_file.path, "r") as f:
@@ -82,7 +82,7 @@ class SiteManager(object):
                 "your site will never update".format(self.title)
             )
 
-    def process_alerts(self, raw_alerts: List[Dict[str, Any]]):
+    def process_alerts(self, raw_alerts: List[Dict[str, Any]]) -> None:
         self.last_updated.now()
 
         self.monitoring_is_down = False
@@ -112,7 +112,7 @@ class SiteManager(object):
             manager.process_alerts(filtered_alerts, timestamp)
 
     @property
-    def status(self):
+    def status(self) -> Severity:
         if self.monitoring_is_down:
             return Severity.ERROR
         return max(
@@ -124,13 +124,13 @@ class SiteManager(object):
 class ServiceManager(object):
     path: FilePath = attr.ib()
     definition: Dict[str, Any] = attr.ib()
-    current_incident = attr.ib(default=None)
+    current_incident: Optional[IncidentManager] = attr.ib(default=None)
     component_labels: List[str] = attr.ib(factory=list)
-    label = attr.ib(default="")
+    label: str = attr.ib(default="")
 
     log = Logger()
 
-    def __attrs_post_init__(self):
+    def __attrs_post_init__(self) -> None:
         self.label = self.definition["label"]
         # TODO: Recover status after server restart
         self.component_labels = [
@@ -144,11 +144,11 @@ class ServiceManager(object):
         if self.current_incident:
             self.current_incident.monitoring_down(timestamp)
 
-    def process_heartbeats(self, heartbeats: List[Alert], timestamp: str):
+    def process_heartbeats(self, heartbeats: List[Alert], timestamp: str) -> None:
         if self.current_incident:
             self.current_incident.process_heartbeats(heartbeats, timestamp)
 
-    def process_alerts(self, alerts: List[Alert], timestamp: str):
+    def process_alerts(self, alerts: List[Alert], timestamp: str) -> None:
         # Filter by service-affecting alerts
         alerts = [
             alert
@@ -172,7 +172,7 @@ class ServiceManager(object):
         self.current_incident = None
 
     @property
-    def status(self):
+    def status(self) -> Severity:
         if self.current_incident:
             # TODO: Consistent naming
             return max(

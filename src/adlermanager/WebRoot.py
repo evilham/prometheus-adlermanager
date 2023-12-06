@@ -4,6 +4,7 @@ from typing import cast
 import jinja2
 import markdown
 from klein import Klein
+from klein.resource import KleinResource
 from twisted.logger import Logger
 from twisted.python.filepath import FilePath
 from twisted.web import resource, static
@@ -14,7 +15,7 @@ from .Config import Config
 from .SitesManager import SiteManager, SitesManager
 
 
-def get_jinja_env(supportDir: str):
+def get_jinja_env(supportDir: str) -> jinja2.Environment:
     """
     Return a L{jinja2.Environment} with templates loaded from:
       - Package
@@ -46,7 +47,7 @@ def get_jinja_env(supportDir: str):
     return templates
 
 
-def web_root(sites_manager: "SitesManager"):
+def web_root(sites_manager: "SitesManager") -> KleinResource:
     app = Klein()
     log = Logger()
 

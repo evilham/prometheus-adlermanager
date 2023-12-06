@@ -25,7 +25,7 @@ class AdlerManagerTokenResource(TokenResource):
         """
         TokenResource.__init__(self, tokens=sites_manager.tokens)
 
-    def preprocess_header(self, header: str):
+    def preprocess_header(self, header: str) -> str:
         return header.split(" ")[-1]
 
     def processToken(self, token_data: "SiteManager", request: Request) -> int:

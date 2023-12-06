@@ -16,21 +16,21 @@ class TimestampFile(object):
         with self.path.open("w") as f:
             f.write(time.strftime(_blessed_date_format).encode("utf-8"))
 
-    def now(self):
+    def now(self) -> None:
         self.set(current_time())
 
-    def getStr(self):
+    def getStr(self) -> str:
         if not self.path.exists():
             return ""
         with self.path.open("r") as f:
             return f.read().decode("utf-8")
 
 
-def current_time():
+def current_time() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def current_timestamp():
+def current_timestamp() -> str:
     return current_time().strftime(_blessed_date_format)
 
 

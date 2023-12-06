@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Optional, Tuple, Union, cast
+from typing import Any, Callable, Dict, Iterator, Optional, Tuple, Union, cast
 
 from zope.interface import implementer
 
@@ -14,6 +14,7 @@ from twisted.conch.insults import insults
 from twisted.conch.manhole_tap import chainedProtocolFactory
 from twisted.conch.ssh import keys, session
 from twisted.cred import portal
+from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessTerminated
 from twisted.python import failure, filepath
 
@@ -23,7 +24,7 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
     keyHandlers: Dict[bytes, Callable[[], None]]
     interactive: bool = True
 
-    def __init__(self, user: "SSHSimpleAvatar", interactive: bool = True):
+    def __init__(self, user: "SSHSimpleAvatar", interactive: bool = True) -> None:
         recvline.HistoricRecvLine.__init__(self)
         self.user = user
         self.interactive = interactive
@@ -35,7 +36,7 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         """
         return self.terminal.write(msg)  # type: ignore
 
-    def connectionMade(self):
+    def connectionMade(self) -> None:
         recvline.HistoricRecvLine.connectionMade(self)
         if not self.interactive:
             return
@@ -49,16 +50,16 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
 
         self.showPrompt()
 
-    def handle_EOF(self):
+    def handle_EOF(self) -> None:
         if self.lineBuffer:  # type: ignore
             self.terminal_write(b"\a")
         else:
             self.exitWithCode(0)
 
-    def handle_QUIT(self):
+    def handle_QUIT(self) -> None:
         self.terminal.loseConnection()
 
-    def showPrompt(self):
+    def showPrompt(self) -> None:
         if self.interactive:
             self.terminal_write(">>> ")
 
@@ -109,9 +110,9 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
             failure.Failure(ProcessTerminated(code, None, None))
         )
 
-    def do_help(self, cmd: bytes = b""):
+    def do_help(self, cmd: bytes = b"") -> None:
         """
-        Get help on a command. Usage: help command
+        Get help on a command. Usage: help [command]
         """
         if cmd:
             func = self._getCommand(cmd)
@@ -130,26 +131,26 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
                 self.terminal.nextLine()
         self.terminal.nextLine()
 
-    def do_whoami(self):
+    def do_whoami(self) -> None:
         """
         Prints your username. Usage: whoami
         """
         self.terminal_write(self.user.username)
         self.terminal.nextLine()
 
-    def do_clear(self):
+    def do_clear(self) -> None:
         """
         Clears the screen. Usage: clear
         """
         self.terminal.reset()
 
-    def do_exit(self):
+    def do_exit(self) -> None:
         """
         Exit session. Usage: exit
         """
         self.exitWithCode(0)
 
-    def motd(self):
+    def motd(self) -> str:
         return ""
 
 
@@ -162,12 +163,12 @@ class SSHSimpleAvatar(avatar.ConchUser):
         self.proto = proto
         self.channelLookup.update({b"session": session.SSHSession})  # type: ignore
 
-    def openShell(self, protocol: session.SSHSessionProcessProtocol):
+    def openShell(self, protocol: session.SSHSessionProcessProtocol) -> None:
         serverProtocol = insults.ServerProtocol(self.proto, self)
         serverProtocol.makeConnection(protocol)  # type: ignore
         protocol.makeConnection(session.wrapProtocol(serverProtocol))  # type: ignore
 
-    def getPty(self, terminal, windowSize, attrs):  # type: ignore
+    def getPty(self, terminal, windowSize, attrs) -> None:  # type: ignore
         return None
 
     def execCommand(
@@ -188,7 +189,16 @@ class SSHSimpleAvatar(avatar.ConchUser):
         """
         pass
 
-    def closed(self):
+    def eofReceived(self) -> None:
+        """
+        Called when the other side has indicated no more data will be sent.
+        """
+        pass
+
+    def closed(self) -> None:
+        """
+        Called when the session is closed.
+        """
         pass
 
 
@@ -211,14 +221,19 @@ class SSHSimpleRealm:
         """
         self.proto = proto
 
-    def requestAvatar(self, avatarId: bytes, mind: Any, *interfaces: Any):
+    def requestAvatar(
+        self,
+        avatarId: Union[bytes, Tuple[()]],
+        mind: object,
+        *interfaces: portal._InterfaceItself,  # type: ignore
+    ) -> Union[Deferred[portal._requestResult], portal._requestResult]:  # type: ignore
         """
         Return a L{SSHSimpleAvatar} that uses ``self.proto`` as protocol.
 
         @see: L{portal.IRealm}
         """
         if conchinterfaces.IConchUser in interfaces:
-            avatar = SSHSimpleAvatar(avatarId, self.proto)
+            avatar = SSHSimpleAvatar(cast(bytes, avatarId), self.proto)
             return interfaces[0], avatar, lambda: None
         else:
             raise Exception("No supported interfaces found.")
@@ -251,7 +266,7 @@ class SSHKeyDirectory(object):
         self.baseDir = baseDir
         self.parseKey = parseKey
 
-    def getAuthorizedKeys(self, username: bytes):
+    def getAuthorizedKeys(self, username: bytes) -> Iterator[keys.Key]:
         keyFile = self.baseDir.child(username + b".key")
         keyDir = self.baseDir.child(username)
 

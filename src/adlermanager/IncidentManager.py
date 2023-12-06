@@ -22,7 +22,7 @@ class IncidentManager(object):
     _alert_timeouts: Dict[str, defer.Deferred[None]] = attr.ib(factory=dict)
     """alert_label -> timeout"""
 
-    _monitoring_down = attr.ib(default=False)
+    _monitoring_down: bool = attr.ib(default=False)
 
     # _logs = attr.ib(factory=list)
     # TODO: Get IncidentClosing timeout from settings?
@@ -31,7 +31,7 @@ class IncidentManager(object):
     #       Defaulting to 5m as alertmanager
     _alert_resolve_timeout: int = attr.ib(default=5 * 60)
 
-    def process_heartbeats(self, heartbeats: Iterable[Alert], timestamp: str):
+    def process_heartbeats(self, heartbeats: Iterable[Alert], timestamp: str) -> None:
         if heartbeats:
             self.last_updated = timestamp
             if self._monitoring_down:
@@ -42,7 +42,7 @@ class IncidentManager(object):
                 )
                 self.log_event("[Meta]MonitoringUp", timestamp)
 
-    def process_alerts(self, alerts: Iterable[Alert], timestamp: str):
+    def process_alerts(self, alerts: Iterable[Alert], timestamp: str) -> None:
         if alerts:
             self._timeout.cancel()
             self._timeout = task.deferLater(

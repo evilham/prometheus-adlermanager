@@ -1,0 +1,17 @@
+[tool.black]
+target-version = ['py39']
+
+[tool.isort]
+profile = "black"
+sections = "FUTURE,STDLIB,ZOPE,OPENSSL,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
+default_section = "THIRDPARTY"
+no_lines_before = "LOCALFOLDER"
+known_first_party = "adlermanager"
+known_zope = "zope"
+known_openssl = "OpenSSL"
+combine_as_imports = true
+#skip = "src/twisted/logger/__init__.py,src/twisted/internet/reactor.py"
+
+[tool.pyright]
+include = ["src"]
+reportIncompatibleMethodOverride = false

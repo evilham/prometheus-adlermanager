@@ -31,11 +31,11 @@ class Severity(IntEnum):
         return Severity.from_string(alert.labels.get("severity", "OK"))
 
     @property
-    def css(self):
+    def css(self) -> str:
         classes = {self.OK: "success", self.WARNING: "warning", self.ERROR: "danger"}
         return classes[self]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.css
 
 
