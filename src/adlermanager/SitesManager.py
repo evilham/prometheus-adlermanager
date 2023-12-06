@@ -32,11 +32,23 @@ class SitesManager(object):
                 continue
             yield cast(str, site_dir.basename())  # type: ignore
 
+    def get_user_sites(self, username: bytes) -> Dict[str, "SiteManager"]:
+        o: Dict[str, SiteManager] = dict()
+        try:
+            u = username.decode("utf-8")
+        except Exception:
+            return o
+        for k, sm in self.site_managers.items():
+            if u in sm.ssh_users:
+                o[k] = sm
+        return o
+
 
 @attr.s
 class SiteManager(object):
     path: FilePath = attr.ib()
     tokens: List[str] = attr.ib(factory=list)
+    ssh_users: List[str] = attr.ib(factory=list)
     log = Logger()
     monitoring_is_down: bool = attr.ib(default=False)
     definition: Dict[str, Any] = attr.ib(factory=dict)
@@ -70,6 +82,8 @@ class SiteManager(object):
     def load_definition(self) -> None:
         with self.path.child("site.yml").open("r") as f:
             self.definition = yaml.safe_load(f)
+            self.ssh_users.clear()
+            self.ssh_users.extend((u for u in self.definition.get("ssh_users", [])))
 
     def load_tokens(self) -> None:
         tokens_file = self.path.child("tokens.txt")
