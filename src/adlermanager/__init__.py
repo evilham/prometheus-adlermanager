@@ -1,6 +1,6 @@
 from .AdlerManagerSSHProtocol import AdlerManagerSSHProtocol
-from .SitesManager import SitesManager
 from .Config import Config
+from .SitesManager import SitesManager
 from .WebRoot import web_root
 
 __all__ = [

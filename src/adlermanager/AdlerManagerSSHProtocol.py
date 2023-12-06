@@ -1,13 +1,14 @@
 import functools
 import json
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import yaml
 
 from .conch_helpers import SSHSimpleAvatar, SSHSimpleProtocol
+from .model import SiteConfig
 
 if TYPE_CHECKING:
-    from adlermanager.SitesManager import SitesManager
+    from adlermanager.SitesManager import SiteManager, SitesManager
 
 
 class AdlerManagerSSHProtocol(SSHSimpleProtocol):
@@ -33,6 +34,67 @@ class AdlerManagerSSHProtocol(SSHSimpleProtocol):
             }
         self.terminal_write(yaml.safe_dump(o, allow_unicode=True))
         self.terminal.nextLine()
+
+    def _get_user_site_manager(self, site: bytes) -> Optional["SiteManager"]:
+        try:
+            s = site.decode("utf-8")
+        except Exception:
+            self.terminal_write("Error: Received invalid site name")
+            self.terminal.nextLine()
+            return None
+        if s not in self.sites_manager.get_user_sites(self.user.username):
+            self.terminal_write("Warning: requested unknown or unaccessible site")
+            self.terminal.nextLine()
+            return None
+        return self.sites_manager.get_user_sites(self.user.username)[s]
+
+    def do_get_site_config(self, site: bytes) -> None:
+        """
+        Get a site's configuration. Usage: get_site_config status.example.org
+        """
+        sm = self._get_user_site_manager(site)
+        if sm is not None:
+            self.terminal_write(sm.site_config.to_YAML())
+
+    async def do_set_site_config(self, site: bytes) -> None:
+        """
+        Set a site's configuration.
+
+        The second argument may be ommitted if running in a non-interactive
+        fashion, in which case stdin will be used.
+
+        Usage: set_site_config status.example.org \\
+            [{"force_state": True, "message": "Hello world!\\n\\nThis is an example"}]
+        """
+        if self.interactive:
+            self.terminal_write("Finish your YAML input with a line like this:")
+            self.terminal.nextLine()
+            self.terminal_write("---")
+            self.terminal.nextLine()
+        sm = self._get_user_site_manager(site)
+        if sm is not None:
+            data = await self.get_user_input(eom=b"---")
+            if data is None or data == b"":
+                raise SyntaxError("No data was received")
+            try:
+                sc = SiteConfig.from_YAML(data)
+            except Exception:
+                raise SyntaxError("SiteConfig could not be created from data")
+            if self.interactive:
+                self.terminal_write(sc.to_YAML())
+                self.terminal_write("Does this look fine? [Y/n] ")
+                ans = await self.get_user_input()
+                if ans.decode("utf-8").strip().upper() not in ["Y", ""]:
+                    self.terminal_write("Aborting")
+                    self.terminal.nextLine()
+                    return
+            # Actually do something
+            sm.site_config = sc
+            sm.config_file.setContent(sc.to_YAML().encode("utf-8"))
+            sm.config_file.chmod(0o640)
+            if self.interactive:
+                self.terminal_write("Persisted SiteConfiguration")
+                self.terminal.nextLine()
 
     def do_tmp_dump_state(self) -> None:
         """

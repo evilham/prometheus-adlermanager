@@ -3,6 +3,7 @@ from typing import cast
 
 import jinja2
 import markdown
+from jinja2.utils import markupsafe  # type: ignore
 from klein import Klein
 from klein.resource import KleinResource
 from twisted.logger import Logger
@@ -41,9 +42,11 @@ def get_jinja_env(supportDir: str) -> jinja2.Environment:
         ),
         autoescape=True,
     )
-    templates.filters["markdown"] = lambda txt: jinja2.Markup(  # type: ignore
-        md.convert(txt)  # type: ignore
-    )
+
+    def md_filter(txt: str) -> markupsafe.Markup:
+        return markupsafe.Markup(md.convert(txt))
+
+    templates.filters["markdown"] = md_filter  # type: ignore
     return templates
 
 

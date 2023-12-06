@@ -8,7 +8,7 @@ from twisted.python.filepath import FilePath
 
 from .Config import Config
 from .IncidentManager import IncidentManager
-from .model import Alert, Severity
+from .model import Alert, Severity, SiteConfig
 from .utils import TimestampFile, default_errback, noop_deferred
 
 
@@ -53,6 +53,7 @@ class SiteManager(object):
     monitoring_is_down: bool = attr.ib(default=False)
     definition: Dict[str, Any] = attr.ib(factory=dict)
     title: str = attr.ib(default="")
+    site_config: SiteConfig = attr.ib(factory=SiteConfig)
 
     _timeout: defer.Deferred[None] = attr.ib(factory=noop_deferred)
     site_name: str = attr.ib(default="")
@@ -64,6 +65,7 @@ class SiteManager(object):
         self.load_definition()
         self.title = self.definition["title"]
         self.load_tokens()
+        self.site_config = self.load_config()
         self.last_updated = TimestampFile(self.path.child("last_updated.txt"))
         self.service_managers = [
             ServiceManager(path=self.path.child(s["label"]), definition=s)
@@ -95,6 +97,16 @@ class SiteManager(object):
                 "Site {}: No tokens exist, "
                 "your site will never update".format(self.title)
             )
+
+    @property
+    def config_file(self) -> FilePath:
+        return self.path.child("config.yaml")
+
+    def load_config(self) -> SiteConfig:
+        try:
+            return SiteConfig.from_YAML(self.config_file.getContent())
+        except Exception:
+            return SiteConfig()
 
     def process_alerts(self, raw_alerts: List[Dict[str, Any]]) -> None:
         self.last_updated.now()

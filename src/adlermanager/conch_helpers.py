@@ -1,4 +1,15 @@
-from typing import Any, Callable, Dict, Iterator, Optional, Tuple, Union, cast
+from io import BytesIO
+from typing import (
+    Any,
+    Callable,
+    Coroutine,
+    Dict,
+    Iterator,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
 
 from zope.interface import implementer
 
@@ -14,7 +25,7 @@ from twisted.conch.insults import insults
 from twisted.conch.manhole_tap import chainedProtocolFactory
 from twisted.conch.ssh import keys, session
 from twisted.cred import portal
-from twisted.internet.defer import Deferred
+from twisted.internet import defer
 from twisted.internet.error import ProcessTerminated
 from twisted.python import failure, filepath
 
@@ -24,6 +35,9 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
     keyHandlers: Dict[bytes, Callable[[], None]]
     interactive: bool = True
 
+    _command_lineReceived: Optional[Callable[[bytes], None]] = None
+    _command_inputEnded: Optional[Callable[[bytes], None]] = None
+
     def __init__(self, user: "SSHSimpleAvatar", interactive: bool = True) -> None:
         recvline.HistoricRecvLine.__init__(self)
         self.user = user
@@ -32,6 +46,8 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
 
     def terminal_write(self, msg: Union[bytes, str]) -> None:
         """
+        Write data to the remote terminal.
+
         We use this method to work around awkward typing in t.c.insults.
         """
         return self.terminal.write(msg)  # type: ignore
@@ -51,6 +67,8 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         self.showPrompt()
 
     def handle_EOF(self) -> None:
+        if self._command_inputEnded is not None:
+            self._command_inputEnded(b"".join(self.lineBuffer))  # type: ignore
         if self.lineBuffer:  # type: ignore
             self.terminal_write(b"\a")
         else:
@@ -63,7 +81,9 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         if self.interactive:
             self.terminal_write(">>> ")
 
-    def _getCommand(self, cmd: bytes) -> Optional[Callable[..., None]]:
+    def _getCommand(
+        self, cmd: bytes
+    ) -> Optional[Callable[..., Union[None, Coroutine[Any, Any, None]]]]:
         """
         Get the method that would be run by 'cmd' if appliable.
 
@@ -75,18 +95,21 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         except Exception:
             return None
 
-    def runCommand(self, cmd: bytes, *args: bytes) -> None:
+    async def runCommand(self, cmd: bytes, *args: bytes) -> None:
         """
         Run the requested command or print 'No such command'.
         """
         func = self._getCommand(cmd)
         if func:
             try:
-                func(*args)
+                res = func(*args)
+                if res is not None:
+                    await defer.ensureDeferred(res)
                 if not self.interactive:
                     self.exitWithCode(0)
             except Exception as ex:
                 self.terminal_write("Error: {}".format(ex))
+                self.terminal.nextLine()
                 if not self.interactive:
                     self.exitWithCode(2)
         else:
@@ -95,15 +118,45 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
             if not self.interactive:
                 self.exitWithCode(1)
 
-    def runLine(self, line: bytes) -> None:
+    async def runLine(self, line: bytes) -> None:
         line_parts = line.strip().split()
         if line_parts:
             cmd, *args = line_parts
-            return self.runCommand(cmd, *args)
+            return await self.runCommand(cmd, *args)
+
+    async def _lineReceived(self, line: bytes) -> None:
+        await self.runLine(line)
+        self.showPrompt()
 
     def lineReceived(self, line: bytes) -> None:
-        self.runLine(line)
-        self.showPrompt()
+        if self._command_lineReceived is None:
+            _ = defer.ensureDeferred(self._lineReceived(line))
+        else:
+            self._command_lineReceived(line)
+
+    def get_user_input(self, eom: bytes = b"") -> defer.Deferred[bytes]:
+        d = defer.Deferred[bytes]()
+        data = BytesIO()
+
+        def _ui_lineReceived(line: bytes) -> None:
+            if eom and line != eom:
+                data.write(line)
+                data.write(b"\n")
+            else:
+                _ui_inputEnded(line)
+
+        def _ui_inputEnded(line: bytes) -> None:
+            if line and line != eom:
+                data.write(line)
+                data.write(b"\n")
+            self._command_lineReceived, self._command_inputEnded = None, None
+            d.callback(data.getvalue())
+
+        self._command_lineReceived, self._command_inputEnded = (
+            _ui_lineReceived,
+            _ui_inputEnded,
+        )
+        return d
 
     def exitWithCode(self, code: int) -> None:
         cast(session.SSHSessionProcessProtocol, self.terminal.transport).processEnded(
@@ -156,6 +209,8 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
 
 @implementer(conchinterfaces.ISession)
 class SSHSimpleAvatar(avatar.ConchUser):
+    serverProtocol: Optional[insults.ServerProtocol] = None
+
     def __init__(self, username: bytes, proto: SSHSimpleProtocol):
         avatar.ConchUser.__init__(self)
 
@@ -164,9 +219,11 @@ class SSHSimpleAvatar(avatar.ConchUser):
         self.channelLookup.update({b"session": session.SSHSession})  # type: ignore
 
     def openShell(self, protocol: session.SSHSessionProcessProtocol) -> None:
-        serverProtocol = insults.ServerProtocol(self.proto, self)
-        serverProtocol.makeConnection(protocol)  # type: ignore
-        protocol.makeConnection(session.wrapProtocol(serverProtocol))  # type: ignore
+        self.serverProtocol = insults.ServerProtocol(self.proto, self)
+        self.serverProtocol.makeConnection(protocol)  # type: ignore
+        protocol.makeConnection(
+            session.wrapProtocol(self.serverProtocol)  # type: ignore
+        )
 
     def getPty(self, terminal, windowSize, attrs) -> None:  # type: ignore
         return None
@@ -174,12 +231,18 @@ class SSHSimpleAvatar(avatar.ConchUser):
     def execCommand(
         self, protocol: session.SSHSessionProcessProtocol, line: bytes
     ) -> None:
-        serverProtocol = insults.ServerProtocol(self.proto, self, interactive=False)
-        serverProtocol.makeConnection(protocol)  # type: ignore
-        protocol.makeConnection(session.wrapProtocol(serverProtocol))  # type: ignore
-        cast(
-            SSHSimpleProtocol, serverProtocol.terminalProtocol  # type: ignore
-        ).runLine(line)
+        self.serverProtocol = insults.ServerProtocol(
+            self.proto, self, interactive=False
+        )
+        self.serverProtocol.makeConnection(protocol)  # type: ignore
+        protocol.makeConnection(
+            session.wrapProtocol(self.serverProtocol)  # type: ignore
+        )
+        _ = defer.ensureDeferred(
+            cast(
+                SSHSimpleProtocol, self.serverProtocol.terminalProtocol  # type: ignore
+            ).runLine(line)
+        )
 
     def windowChanged(self, dimensions: Tuple[int, int, int, int]):  # type: ignore
         """This gets triggered when user changes terminal dimensions.
@@ -193,7 +256,11 @@ class SSHSimpleAvatar(avatar.ConchUser):
         """
         Called when the other side has indicated no more data will be sent.
         """
-        pass
+        if self.serverProtocol is not None:
+            ssh_sp = cast(
+                SSHSimpleProtocol, self.serverProtocol.terminalProtocol  # type: ignore
+            )
+            ssh_sp.handle_EOF()
 
     def closed(self) -> None:
         """
@@ -226,7 +293,9 @@ class SSHSimpleRealm:
         avatarId: Union[bytes, Tuple[()]],
         mind: object,
         *interfaces: portal._InterfaceItself,  # type: ignore
-    ) -> Union[Deferred[portal._requestResult], portal._requestResult]:  # type: ignore
+    ) -> Union[
+        defer.Deferred[portal._requestResult], portal._requestResult  # type: ignore
+    ]:
         """
         Return a L{SSHSimpleAvatar} that uses ``self.proto`` as protocol.
 

@@ -22,18 +22,22 @@
   </h1>
   <div class="alert alert-{{ site.status.css }} mb-5 mt-5" role="alert">
     <h4 class="alert-heading">
-{% if site.status.css == "success" %}
+{% if site.site_config.force_state %}
+{{     site.site_config.message | markdown }}
+{% else %}
+{%     if site.status.css == "success" %}
         Everything is OK
-{% endif %}
-{% if site.status.css == "warning" %}
+{%     endif %}
+{%     if site.status.css == "warning" %}
         Some services may be affected
-{% endif %}
-{% if site.status.css == "danger" %}
-{%   if site.monitoring_is_down %}
+{%     endif %}
+{%     if site.status.css == "danger" %}
+{%         if site.monitoring_is_down %}
         Monitoring may be down!
-{%   else %}
+{%         else %}
         Some services are seriously affected
-{%   endif %}
+{%         endif %}
+{%     endif %}
 {% endif %}
     </h4>
   </div>
