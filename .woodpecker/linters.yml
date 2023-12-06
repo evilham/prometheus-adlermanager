@@ -4,8 +4,8 @@ variables:
    - pip install pipenv
    - pipenv install --dev
   pyenv: &pyenv
-    - PYTHONPATH=./app
-    - MYPYPATH=./app
+    - PYTHONPATH=./src
+    - MYPYPATH=./src
 
 steps:
   black:
