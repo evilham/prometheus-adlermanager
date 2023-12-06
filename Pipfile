@@ -23,6 +23,7 @@ isort = "*"
 types-markdown = "*"
 types-pyyaml = "*"
 mypy-zope = "*"
+black = "*"
 
 [pipenv]
 allow_prereleases = true
