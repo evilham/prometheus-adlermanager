@@ -30,7 +30,7 @@ class SitesManager(object):
         for site_dir in self.sites_dir.children():
             if not site_dir.isdir():
                 continue
-            yield cast(str, site_dir.basename())
+            yield cast(str, site_dir.basename())  # type: ignore
 
 
 @attr.s
@@ -163,7 +163,7 @@ class ServiceManager(object):
             if not self.path.isdir():
                 self.path.createDirectory()
             # Notify when incident is considered resolved
-            self.current_incident.expired.addCallback(self.resolve_incident)
+            _ = self.current_incident.expired.addCallback(self.resolve_incident)
 
         if self.current_incident:
             self.current_incident.process_alerts(alerts, timestamp)

@@ -75,7 +75,9 @@ def web_root(sites_manager: "SitesManager") -> KleinResource:
                 500, "Sad cat", '<a href="http://http.cat/500">http://http.cat/500</a>'
             )
 
-        site_path = cast(str, FilePath(Config.data_dir).child("sites").child(host).path)
+        site_path = cast(  # type: ignore
+            str, FilePath(Config.data_dir).child("sites").child(host).path
+        )
         templates = get_jinja_env(site_path)
         template = templates.get_template("template.j2")
 

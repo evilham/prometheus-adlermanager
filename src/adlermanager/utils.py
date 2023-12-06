@@ -50,5 +50,5 @@ def default_errback(failure: Failure) -> None:
 
 def noop_deferred() -> defer.Deferred[None]:
     d: defer.Deferred[None] = defer.Deferred()
-    d.addErrback(default_errback)
+    _ = d.addErrback(default_errback)
     return d
