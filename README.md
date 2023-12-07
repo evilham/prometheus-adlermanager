@@ -1,4 +1,4 @@
-# prometheus-adlermanager (Working title)
+# prometheus-adlermanager
 
 ## What?
 
@@ -16,44 +16,83 @@ a fashion suitable for user-facing status pages.
 
 ## I want it!
 
-### Development environment
+### Dependencies
 
-You need to have installed pipenv (on debian stable this is `sudo apt install pipenv`), and then, do
+The easiest way to manage dependencies for deployment and development is with
+pipenv:
+
+- On Debian-based systems: `sudo apt install pipenv`
+- On FreeBSD: `pkg install py39-pipenv` (or `devel/py-pipenv` from ports)
+
+The actual dependencies are:
+
+- attrs
+- twisted[conch]
+- service-identity
+- pyyaml
+- klein
+- jinja2
+- markdown
+
+Using Pipenv you can install them for development with:
 
 ```sh
 pipenv install --dev
 ```
 
-you need an `.env` in the root path of this git repo with the suggested env vars
+And for deployment with:
 
 ```sh
-cat > .env <<END
-DATA_DIR=./example-data
-SSH_KEYS_DIR=./example-data/ssh
-PYTHONPATH=./src
-WEB_ENDPOINT="tcp6:interface=\:\::port=8080"
-SSH_ENABLED="YES"
+pipenv install
+```
+
+### Configuration
+
+This is done via environment variables, Pipenv will import them from a `.env`
+file in the root of this repo.
+
+You can use `dotenv.example` as a base for your settings:
+```sh
+cp dotenv.example .env
 END
 ```
 
-To get working ssh interface, add your ssh public key in the following location `example-data/ssh/users/myuser.key`
+**Review** the available settings and their descriptions, particularly you will
+want to check `DATA_DIR` and `SSH_KEYS_DIR`.
 
-Finally, to run the server, use the following command
+### SSH access
+
+In order to access AdlerManager via SSH, you will need to add your public SSH
+key in `authorized_keys` format to:
+`${SSH_KEYS_DIR:-data}/ssh/users/myuser.key`
+
+And give yourself access to the given site, by adding your username to its
+`ssh_users` list.
+
+### Running
+
+To run the server for development you can use the following command:
 
 ```sh
 pipenv run twistd -ny app.py
 ```
 
-After that you have the public status web visible in http://localhost:8080 and the ssh interface in localhost port 2222
+And for deployment, you can use [`twistd`][twistd] itself to run the process
+in the background or any other daemon watching strategy of your liking
+(including e.g. `runit` or `systemd`).
+[twistd]: https://docs.twisted.org/en/stable/core/howto/basics.html#twistd
 
-### Deployment instructions
+### Using
 
-TODO: Maybe make this available / add deployment instructions.
+After that with the defaults you will have the public status web visible in
+http://localhost:8080 and the ssh interface in localhost port 2222
+which you can access with `ssh -p 2222 USER@localhost`.
 
 ## How does it work?
 
 We aim to solve that by using the same source of information to publish
 only the desired state/statistics.
+
 
 ### 1. Pretend to be an AlertManager
 
@@ -61,13 +100,10 @@ This is done by accepting `POST` requests from Prometheus on
 `/api/v1/alerts`, see
 [https://prometheus.io/docs/alerting/clients/](AlertManager) docs.
 
-### 2. Filter out non-public Alerts
+### 2. Structure Alerts into Services and Components
 
-To mark an Alert as public, whitelist it by using the special labels:
-TODO
-
-### 3. Structure Alerts into Services and Components
+### 3. Web only lists alerts configured for AdlerManager (public!)
 
 ### 4. Keep track of incidents
 
-### 5. Allow for public updates / accountability
+### 5. Allow for public updates / accountability (via SSH!)

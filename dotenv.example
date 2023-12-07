@@ -1,0 +1,70 @@
+#
+# Automatically generated, manual changes will be lost
+# Run: python -m adlermanager.Config dotenv.example
+#
+
+# All settings can be set via Environment variables.
+# If you use pipenv, you are encouraged to use the .env file.
+# See pipenv's documentation for more information.
+
+#DATA_DIR="../data"
+#
+# Environment: DATA_DIR.
+# Directory to save persistent data in.
+# # Web
+
+#WEB_ENDPOINT="tcp6:interface\:\::port=8080"
+#
+# Environment: WEB_ENDPOINT.
+# Where we should listen for HTTP connections.
+# This defaults to TCP port 8080, but you can also use a UNIX socket,
+# which you can proxy from your web server.
+#
+# See:
+# https://docs.twisted.org/en/stable/core/howto/endpoints.html#servers
+# https://klein.readthedocs.io/en/latest/examples/alternativerunning.html#example-ipv6-tls-unix-sockets-endpoints
+
+#WEB_STATIC_DIR="../static"
+#
+# Environment: WEB_STATIC_DIR.
+# Directory to server static files from.
+# # SSH
+
+#SSH_ENABLED="YES"
+#
+# Environment: SSH_ENABLED.
+# If this environment variable is anything other than empty,
+# SSH_ENDPOINT will be used to listen for SSH connections.
+
+#SSH_ENDPOINT="tcp6:interface=\:\::port=2222"
+#
+# Environment: SSH_ENDPOINT.
+# Where we should listen for SSH connections if SSH_ENABLED is
+# anything other than empty.
+#
+# See:
+# https://docs.twisted.org/en/stable/core/howto/endpoints.html#servers
+# https://klein.readthedocs.io/en/latest/examples/alternativerunning.html#example-ipv6-tls-unix-sockets-endpoints
+
+#SSH_KEY_SIZE="4096"
+#
+# Environment: SSH_KEY_SIZE.
+# Size for server's auto-generated SSH host key.
+
+#SSH_KEYS_DIR="../data/ssh"
+#
+# Environment: SSH_KEYS_DIR.
+# Directory to save SSH keys in.
+# This includes the server private key and users' public keys.
+# # Alerts processing
+
+#NEW_INCIDENT_TIMEOUT="60"
+#
+# Environment: NEW_INCIDENT_TIMEOUT.
+# Alerts incoming at roughly the same time are grouped into incidents.
+# Use this to configure the timeout after which alerts will be
+# considered separate incidents, in minutes.
+# Example: If it is set for 30 minutes, and alerts come at 09:00,
+# 09:20, 09:40, and 11:00, then the first 3 will be the same incident and
+# the last one will begin a new incident.
+# Default value: 60 (i.e. 1 hour).
