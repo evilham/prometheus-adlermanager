@@ -29,3 +29,11 @@ steps:
       - <<: *pysteps
       - pipenv run mypy -m adlermanager
     environment: *pyenv
+  dotenv:
+    image: *pyimage
+    group: linters
+    commands:
+      - <<: *pysteps
+      - pipenv run python -m adlermanager.Config dotenv.example.gen
+      - diff -q dotenv.example dotenv.example.gen
+    environment: *pyenv

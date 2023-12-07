@@ -57,3 +57,8 @@ branding:
     orange:    '#cb4b16'
     red:       '#dc322f'
   # TODO logo
+
+# Note you need to add your keys in authorized_keys format to:
+#   SSH_KEYS_DIR/USER.key
+ssh_users:
+  - testuser
