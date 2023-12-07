@@ -52,6 +52,12 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         """
         return self.terminal.write(msg)  # type: ignore
 
+    # avoid clearing screen when terminal logs in
+    #   see https://github.com/twisted/twisted/blob/7697871b4d89c78c8764c6be42372fc68299714e/src/twisted/conch/recvline.py#L385
+    def initializeScreen(self) -> None:
+        self.terminal.write(self.ps[self.pn])
+        self.setInsertMode()
+
     def connectionMade(self) -> None:
         recvline.HistoricRecvLine.connectionMade(self)
         if not self.interactive:
