@@ -16,8 +16,39 @@ a fashion suitable for user-facing status pages.
 
 ## I want it!
 
-TODO: Maybe make this available / add deployment instructions.
+### Development environment
 
+You need to have installed pipenv (on debian stable this is `sudo apt install pipenv`), and then, do
+
+```sh
+pipenv install --dev
+```
+
+you need an `.env` in the root path of this git repo with the suggested env vars
+
+```sh
+cat > .env <<END
+DATA_DIR=./example-data
+SSH_KEYS_DIR=./example-data/ssh
+PYTHONPATH=./src
+WEB_ENDPOINT="tcp6:interface=\:\::port=8080"
+SSH_ENABLED="YES"
+END
+```
+
+To get working ssh interface, add your ssh public key in the following location `example-data/ssh/users/myuser.key`
+
+Finally, to run the server, use the following command
+
+```sh
+pipenv run twistd -ny app.py
+```
+
+After that you have the public status web visible in http://localhost:8080 and the ssh interface in localhost port 2222
+
+### Deployment instructions
+
+TODO: Maybe make this available / add deployment instructions.
 
 ## How does it work?
 
