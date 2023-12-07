@@ -52,6 +52,16 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         """
         return self.terminal.write(msg)  # type: ignore
 
+    def initializeScreen(self) -> None:
+        """
+        Initialise terminal in InsertMode, without clearing the screen.
+
+        This overrides the definition in twisted.conch.recvline.RecvLine:
+        https://github.com/twisted/twisted/blob/7697871b4d89c78c8764c6be42372fc68299714e/src/twisted/conch/recvline.py#L385
+        """
+        self.terminal_write(self.ps[self.pn])
+        self.setInsertMode()
+
     def connectionMade(self) -> None:
         recvline.HistoricRecvLine.connectionMade(self)
         if not self.interactive:
@@ -221,7 +231,7 @@ class SSHSimpleAvatar(avatar.ConchUser):
     def openShell(self, protocol: session.SSHSessionProcessProtocol) -> None:
         self.serverProtocol = insults.ServerProtocol(self.proto, self)
         self.serverProtocol.makeConnection(protocol)  # type: ignore
-        protocol.makeConnection(
+        protocol.makeConnection(  # type: ignore
             session.wrapProtocol(self.serverProtocol)  # type: ignore
         )
 
@@ -235,7 +245,7 @@ class SSHSimpleAvatar(avatar.ConchUser):
             self.proto, self, interactive=False
         )
         self.serverProtocol.makeConnection(protocol)  # type: ignore
-        protocol.makeConnection(
+        protocol.makeConnection(  # type: ignore
             session.wrapProtocol(self.serverProtocol)  # type: ignore
         )
         _ = defer.ensureDeferred(
