@@ -54,7 +54,6 @@ file in the root of this repo.
 You can use `dotenv.example` as a base for your settings:
 ```sh
 cp dotenv.example .env
-END
 ```
 
 **Review** the available settings and their descriptions, particularly you will
