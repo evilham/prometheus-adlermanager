@@ -3,11 +3,11 @@
 # Run with twistd -ny app.py
 
 from twisted.application import service, strports
-from twisted.web import server
+from twisted.logger import Logger
 from twisted.python.filepath import FilePath
+from twisted.web import server
 
-from adlermanager import Config, SitesManager
-from adlermanager import web_root
+from adlermanager import Config, SitesManager, web_root
 
 if not FilePath(Config.data_dir).isdir():
     FilePath(Config.data_dir).createDirectory()
@@ -37,3 +37,7 @@ if Config.ssh_enabled:
         keySize=Config.ssh_key_size,
     )
     i.setServiceParent(serv_collection)  # type: ignore
+
+# Inform people of current configuration
+log = Logger()
+log.info(f"Starting server with this configuration:\n{Config}")
