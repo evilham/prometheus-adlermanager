@@ -2,6 +2,11 @@
 # Automatically generated, manual changes will be lost
 # Run: python -m adlermanager.Config dotenv.example
 #
+# If using Pipenv or similar, you probably want:
+# To load the adlermanager module:
+PYTHONPATH="./src"
+# To instruct mypy to find the adlermanager module:
+MYPYPATH="./src"
 
 # All settings can be set via Environment variables.
 # If you use pipenv, you are encouraged to use the .env file.
@@ -13,7 +18,7 @@
 # Directory to save persistent data in.
 # # Web
 
-#WEB_ENDPOINT="tcp6:interface\:\::port=8080"
+#WEB_ENDPOINT="tcp6:interface=\:\::port=8080"
 #
 # Environment: WEB_ENDPOINT.
 # Where we should listen for HTTP connections.

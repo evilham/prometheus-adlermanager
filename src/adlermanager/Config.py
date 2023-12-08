@@ -21,7 +21,7 @@ class ConfigClass(object):
 
     # Web
     web_endpoint: str = attr.ib(
-        default=os.getenv("WEB_ENDPOINT", r"tcp6:interface\:\::port=8080")
+        default=os.getenv("WEB_ENDPOINT", r"tcp6:interface=\:\::port=8080")
     )
     """
     @param web_endpoint: Environment: WEB_ENDPOINT.
@@ -116,6 +116,11 @@ if __name__ == "__main__":
                     "# Automatically generated, manual changes will be lost",
                     "# Run: python -m adlermanager.Config dotenv.example",
                     "#",
+                    "# If using Pipenv or similar, you probably want:",
+                    "# To load the adlermanager module:",
+                    'PYTHONPATH="./src"',
+                    "# To instruct mypy to find the adlermanager module:",
+                    'MYPYPATH="./src"',
                     "",
                     "",
                 ]
