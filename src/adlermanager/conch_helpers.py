@@ -127,7 +127,8 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
                 if len(self._unicodeCharBuffer) == self._unicodeCharLength:
                     # Got enough bytes, send the char
                     self.characterReceived(  # type: ignore
-                        b"".join(self._unicodeCharBuffer), False)
+                        b"".join(self._unicodeCharBuffer), False
+                    )
                     self._unicodeCharBuffer.clear()
         else:
             self._log.warn("Received unhandled keyID: {keyID!r}", keyID=keyID)
