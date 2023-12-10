@@ -5,6 +5,7 @@ from typing import (
     Coroutine,
     Dict,
     Iterator,
+    List,
     Optional,
     Tuple,
     Union,
@@ -34,6 +35,9 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
     terminal: insults.ServerProtocol
     keyHandlers: Dict[bytes, Callable[[], None]]
     mode: str
+    lineBuffer: List[bytes]
+    _unicodeCharBuffer: List[bytes]
+    _unicodeCharLength: int
 
     _command_lineReceived: Optional[Callable[[bytes], None]] = None
     _command_inputEnded: Optional[Callable[[bytes], None]] = None
@@ -42,6 +46,8 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         recvline.HistoricRecvLine.__init__(self)
         self.user = user
         self.ps = (b">>> ", b"... ")
+        self._unicodeCharBuffer = []
+        self._unicodeCharLength = 1
 
     def terminal_write(self, msg: Union[bytes, str]) -> None:
         """
@@ -67,6 +73,74 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
             self.terminal.nextLine()
             self.showPrompt()
 
+    def keystrokeReceived(self, keyID: bytes, modifier: Any) -> None:
+        """
+        Handle a received keystroke.
+
+        The default implementation of this was keeping us from using anything
+        not listed in string.printable, which is a rather limited subset of
+        symbols.
+        """
+        # For those of us that forget periodically how unicode works:
+        # https://docs.python.org/3/library/codecs.html#encodings-and-unicode
+        # The table with the encoding is particularly useful :-)
+        unicode_mark = 1 == (keyID[0] >> 7) & 1  # 0x1XXXYYYY
+        m = self.keyHandlers.get(keyID)
+        if m is not None:
+            m()
+        elif (
+            not unicode_mark  # This is not a unicode byte
+            and not self._unicodeCharBuffer  # Check we had nothing in buffer
+            and keyID in self._printableChars  # Printable ascii
+        ):
+            self.characterReceived(keyID, False)  # type: ignore
+        elif unicode_mark:  # Handle unicode
+            leading_ones = 1  # 0x10XXYYYY .. 0x11110YYY
+            for i in (6, 5, 4, 3):
+                if 1 == keyID[0] >> i & 1:
+                    leading_ones += 1
+                else:
+                    break
+            if (  # Catch misbehaved input
+                leading_ones > 4  # This is too many ones
+                or (
+                    leading_ones < 2 and len(self._unicodeCharBuffer) < 1
+                )  # This is a wrong starting byte
+                or (
+                    leading_ones > 1 and len(self._unicodeCharBuffer) > 0
+                )  # This  ends a previous multi-byte char too soon
+                # TODO: should we keep this starting byte in the buffer?
+            ):
+                self._unicodeCharBuffer.append(keyID)
+                self._log.warn(
+                    "Received unhandled unicode sequence: {bs!r}",
+                    bs=b"".join(self._unicodeCharBuffer),
+                )
+                self._unicodeCharBuffer.clear()
+            else:
+                if leading_ones > 1:  # First byte of char
+                    self._unicodeCharBuffer.clear()
+                    # Save how many bytes we need
+                    self._unicodeCharLength = leading_ones
+
+                self._unicodeCharBuffer.append(keyID)
+                if len(self._unicodeCharBuffer) == self._unicodeCharLength:
+                    # Got enough bytes, send the char
+                    self.characterReceived(  # type: ignore
+                        b"".join(self._unicodeCharBuffer), False)
+                    self._unicodeCharBuffer.clear()
+        else:
+            self._log.warn("Received unhandled keyID: {keyID!r}", keyID=keyID)
+            if self._unicodeCharBuffer:
+                self._log.warn(
+                    "    after unicode sequence: {bs!r}",
+                    bs=b"".join(self._unicodeCharBuffer),
+                )
+            self._unicodeCharBuffer.clear()
+
+        if not unicode_mark:
+            self._unicodeCharBuffer.clear()
+
     def connectionMade(self) -> None:
         recvline.HistoricRecvLine.connectionMade(self)
         if not self.interactive:
@@ -78,7 +152,7 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
 
     def handle_EOF(self) -> None:
         if self._command_inputEnded is not None:
-            self._command_inputEnded(b"".join(self.lineBuffer))  # type: ignore
+            self._command_inputEnded(b"".join(self.lineBuffer))
         if self.lineBuffer:  # type: ignore
             self.terminal_write(b"\a")
         else:
@@ -233,7 +307,7 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
 @implementer(conchinterfaces.ISession)
 class SSHSimpleAvatar(avatar.ConchUser):
     serverProtocol: Optional[insults.ServerProtocol] = None
-    ptyAllocated : bool = False
+    ptyAllocated: bool = False
     """
     Whether or not a pty was ever requested.
     """
@@ -260,9 +334,7 @@ class SSHSimpleAvatar(avatar.ConchUser):
     def execCommand(
         self, protocol: session.SSHSessionProcessProtocol, line: bytes
     ) -> None:
-        self.serverProtocol = insults.ServerProtocol(
-            self.proto, self
-        )
+        self.serverProtocol = insults.ServerProtocol(self.proto, self)
         self.serverProtocol.makeConnection(protocol)  # type: ignore
         protocol.makeConnection(  # type: ignore
             session.wrapProtocol(self.serverProtocol)  # type: ignore
