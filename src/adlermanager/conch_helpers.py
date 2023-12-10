@@ -33,16 +33,15 @@ from twisted.python import failure, filepath
 class SSHSimpleProtocol(recvline.HistoricRecvLine):
     terminal: insults.ServerProtocol
     keyHandlers: Dict[bytes, Callable[[], None]]
-    interactive: bool = True
+    mode: str
 
     _command_lineReceived: Optional[Callable[[bytes], None]] = None
     _command_inputEnded: Optional[Callable[[bytes], None]] = None
 
-    def __init__(self, user: "SSHSimpleAvatar", interactive: bool = True) -> None:
+    def __init__(self, user: "SSHSimpleAvatar") -> None:
         recvline.HistoricRecvLine.__init__(self)
         self.user = user
-        self.interactive = interactive
-        self.ps = (b"", b"")
+        self.ps = (b">>> ", b"... ")
 
     def terminal_write(self, msg: Union[bytes, str]) -> None:
         """
@@ -59,8 +58,14 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         This overrides the definition in twisted.conch.recvline.RecvLine:
         https://github.com/twisted/twisted/blob/7697871b4d89c78c8764c6be42372fc68299714e/src/twisted/conch/recvline.py#L385
         """
-        self.terminal_write(self.ps[self.pn])
-        self.setInsertMode()
+        # This seems to produce minor issues on the client's terminal
+        # self.setInsertMode()
+        # But conch does assume .mode is set early
+        self.mode = "insert"
+        if self.interactive:
+            self.terminal_write(self.motd())
+            self.terminal.nextLine()
+            self.showPrompt()
 
     def connectionMade(self) -> None:
         recvline.HistoricRecvLine.connectionMade(self)
@@ -70,11 +75,6 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         self.keyHandlers[b"\x04"] = self.handle_EOF
         # CTRL_BACKSLASH
         self.keyHandlers[b"\x1c"] = self.handle_QUIT
-
-        self.terminal_write(self.motd())
-        self.terminal.nextLine()
-
-        self.showPrompt()
 
     def handle_EOF(self) -> None:
         if self._command_inputEnded is not None:
@@ -87,9 +87,22 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
     def handle_QUIT(self) -> None:
         self.terminal.loseConnection()
 
+    @property
+    def interactive(self) -> bool:
+        """
+        Whether or not we are running an interactive shell.
+
+        This is currently done by determining if a pty has been requested.
+        """
+        return self.user.ptyAllocated
+
+    @property
+    def prompt(self) -> bytes:
+        return self.ps[self.pn]
+
     def showPrompt(self) -> None:
         if self.interactive:
-            self.terminal_write(">>> ")
+            self.terminal_write(self.prompt)
 
     def _getCommand(
         self, cmd: bytes
@@ -220,6 +233,10 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
 @implementer(conchinterfaces.ISession)
 class SSHSimpleAvatar(avatar.ConchUser):
     serverProtocol: Optional[insults.ServerProtocol] = None
+    ptyAllocated : bool = False
+    """
+    Whether or not a pty was ever requested.
+    """
 
     def __init__(self, username: bytes, proto: SSHSimpleProtocol):
         avatar.ConchUser.__init__(self)
@@ -236,13 +253,15 @@ class SSHSimpleAvatar(avatar.ConchUser):
         )
 
     def getPty(self, terminal, windowSize, attrs) -> None:  # type: ignore
+        # Save the pty request for use from the protocol
+        self.ptyAllocated = True
         return None
 
     def execCommand(
         self, protocol: session.SSHSessionProcessProtocol, line: bytes
     ) -> None:
         self.serverProtocol = insults.ServerProtocol(
-            self.proto, self, interactive=False
+            self.proto, self
         )
         self.serverProtocol.makeConnection(protocol)  # type: ignore
         protocol.makeConnection(  # type: ignore
