@@ -2,6 +2,7 @@ import functools
 import json
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
+import attr
 import yaml
 
 from .conch_helpers import SSHSimpleAvatar, SSHSimpleProtocol
@@ -29,8 +30,9 @@ class AdlerManagerSSHProtocol(SSHSimpleProtocol):
         o: Dict[str, Any] = dict()
         for k, sm in self.sites_manager.get_user_sites(self.user.username).items():
             o[k] = {
-                "title": sm.title,
+                "config": attr.asdict(sm.site_config),
                 "status": {"value": sm.status.value, "message": str(sm.status)},
+                "title": sm.title,
             }
         self.terminal_write(yaml.safe_dump(o, allow_unicode=True))
         self.terminal.nextLine()
