@@ -6,25 +6,54 @@ from twisted.internet import defer, reactor, task
 from twisted.logger import Logger
 from twisted.python.filepath import FilePath
 
-from .Config import Config
+from .Config import ConfigClass
 from .IncidentManager import IncidentManager
 from .model import Alert, Severity, SiteConfig
 from .utils import TimestampFile, default_errback, noop_deferred
 
 
+@attr.s
 class SitesManager(object):
+    global_config: ConfigClass = attr.ib()
+    site_managers: Dict[str, "SiteManager"] = attr.ib(factory=dict)
+    tokens: Dict[str, "SiteManager"] = attr.ib(factory=dict)
+
     log = Logger()
 
-    def __init__(self) -> None:
-        self.sites_dir = FilePath(Config.data_dir).child("sites")
-        self.site_managers = {
-            site: SiteManager(self.sites_dir.child(site)) for site in self.load_sites()
+    def __attrs_post_init__(self) -> None:
+        self.reload()
+
+    def reload(self) -> "SitesManager":
+        # Read sites
+        read_sites = {
+            site: self.site_managers[site].reload()
+            if site in self.site_managers
+            else SiteManager(
+                global_config=self.global_config, path=self.sites_dir.child(site)
+            )
+            for site in self.load_sites()
         }
-        self.tokens: Dict[str, SiteManager] = {
-            token: manager
-            for manager in self.site_managers.values()
-            for token in manager.tokens
-        }
+        # Remove deleted sites
+        for deleted_site in set(self.site_managers.keys()).difference(
+            read_sites.keys()
+        ):
+            del self.site_managers[deleted_site]
+        # Apply update / add new sites
+        self.site_managers.update(read_sites)
+        # Re-read all sites
+        self.tokens.clear()
+        self.tokens.update(
+            {
+                token: manager
+                for manager in self.site_managers.values()
+                for token in manager.tokens
+            }
+        )
+        return self
+
+    @property
+    def sites_dir(self) -> FilePath:
+        return FilePath(self.global_config.data_dir).child("sites")
 
     def load_sites(self) -> Generator[str, None, None]:
         for site_dir in self.sites_dir.children():
@@ -46,6 +75,7 @@ class SitesManager(object):
 
 @attr.s
 class SiteManager(object):
+    global_config: ConfigClass = attr.ib()
     path: FilePath = attr.ib()
     tokens: List[str] = attr.ib(factory=list)
     ssh_users: List[str] = attr.ib(factory=list)
@@ -54,6 +84,7 @@ class SiteManager(object):
     definition: Dict[str, Any] = attr.ib(factory=dict)
     title: str = attr.ib(default="")
     site_config: SiteConfig = attr.ib(factory=SiteConfig)
+    service_managers: Dict[str, "ServiceManager"] = attr.ib(factory=dict)
 
     _timeout: defer.Deferred[None] = attr.ib(factory=noop_deferred)
     site_name: str = attr.ib(default="")
@@ -62,23 +93,44 @@ class SiteManager(object):
     _timeout_seconds = 2 * 60
 
     def __attrs_post_init__(self) -> None:
+        self.reload(first_run=True)
+
+    def reload(self, first_run: bool = False) -> "SiteManager":
         self.load_definition()
         self.title = self.definition["title"]
         self.load_tokens()
         self.site_config = self.load_config()
-        self.last_updated = TimestampFile(self.path.child("last_updated.txt"))
-        self.service_managers = [
-            ServiceManager(path=self.path.child(s["label"]), definition=s)
-            for s in cast(List[Dict[str, Any]], self.definition.get("services", dict()))
-        ]
         self.site_name = self.path.basename()
+        self.last_updated = TimestampFile(self.path.child("last_updated.txt"))
+        # Read services
+        read_services: Dict[str, ServiceManager] = {
+            s["label"]: self.service_managers[s["label"]].reload(s)
+            if s["label"] in self.service_managers
+            else ServiceManager(
+                global_config=self.global_config,
+                path=self.path.child(s["label"]),
+                definition=s,
+            )
+            for s in cast(List[Dict[str, Any]], self.definition.get("services", dict()))
+        }
+        # Remove deleted servicse
+        for deleted_service in set(self.service_managers.keys()).difference(
+            read_services.keys()
+        ):
+            del self.service_managers[deleted_service]
+        # Apply update / add new sites
+        self.service_managers.update(read_services)
+
+        # Add/reset monitoring timeout
+        self._timeout.cancel()
         self._timeout = task.deferLater(
             reactor, self._timeout_seconds, self.monitoring_down  # type: ignore
         ).addErrback(default_errback)
+        return self
 
     def monitoring_down(self) -> None:
         self.monitoring_is_down = True
-        for manager in self.service_managers:
+        for _, manager in self.service_managers.items():
             manager.monitoring_down(self.last_updated.getStr())
 
     def load_definition(self) -> None:
@@ -133,7 +185,7 @@ class SiteManager(object):
             (heartbeats if a.labels.get("heartbeat") else filtered_alerts).append(a)
 
         timestamp = self.last_updated.getStr()
-        for manager in self.service_managers:
+        for _, manager in self.service_managers.items():
             manager.process_heartbeats(heartbeats, timestamp)
             manager.process_alerts(filtered_alerts, timestamp)
 
@@ -142,29 +194,40 @@ class SiteManager(object):
         if self.monitoring_is_down:
             return Severity.ERROR
         return max(
-            (service.status for service in self.service_managers), default=Severity.OK
+            (service.status for _, service in self.service_managers.items()),
+            default=Severity.OK,
         )
 
 
 @attr.s
 class ServiceManager(object):
+    global_config: ConfigClass = attr.ib()
     path: FilePath = attr.ib()
     definition: Dict[str, Any] = attr.ib()
     current_incident: Optional[IncidentManager] = attr.ib(default=None)
     component_labels: List[str] = attr.ib(factory=list)
     label: str = attr.ib(default="")
 
-    log = Logger()
-
     def __attrs_post_init__(self) -> None:
+        self.reload()
+
+    def reload(self, definition: Dict[str, Any] = {}) -> "ServiceManager":
+        if definition:
+            # This should only happen when reloading
+            self.definition.clear()
+            self.definition.update(definition)
         self.label = self.definition["label"]
         # TODO: Recover status after server restart
-        self.component_labels = [
-            component["label"]
-            for component in cast(
-                List[Dict[str, Any]], self.definition.get("components", [])
-            )
-        ]
+        self.component_labels.clear()
+        self.component_labels.extend(
+            [
+                component["label"]
+                for component in cast(
+                    List[Dict[str, Any]], self.definition.get("components", [])
+                )
+            ]
+        )
+        return self
 
     def monitoring_down(self, timestamp: str) -> None:
         if self.current_incident:
@@ -185,9 +248,10 @@ class ServiceManager(object):
 
         if alerts and not self.current_incident:
             # Something is up, open an incident
-            self.current_incident = IncidentManager(self.path.child(timestamp))
-            if not self.path.isdir():
-                self.path.createDirectory()
+            self.current_incident = IncidentManager(
+                global_config=self.global_config,
+                path=self.path,
+            )
             # Notify when incident is considered resolved
             _ = self.current_incident.expired.addCallback(self.resolve_incident)
 
@@ -200,7 +264,6 @@ class ServiceManager(object):
     @property
     def status(self) -> Severity:
         if self.current_incident:
-            # TODO: Consistent naming
             return max(
                 (
                     alert.status

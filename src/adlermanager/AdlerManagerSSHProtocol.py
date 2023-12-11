@@ -104,7 +104,7 @@ class AdlerManagerSSHProtocol(SSHSimpleProtocol):
         """
         for k, sm in self.sites_manager.get_user_sites(self.user.username).items():
             self.terminal_write(f"\n#\n# {k}\n#\n")
-            for srv in sm.service_managers:
+            for _, srv in sm.service_managers.items():
                 self.terminal_write(f"## {srv.label}\n")
                 self.terminal_write(json.dumps(srv.components))
                 self.terminal.nextLine()

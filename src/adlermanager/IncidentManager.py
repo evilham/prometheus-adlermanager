@@ -4,6 +4,7 @@ import attr
 from twisted.internet import defer, reactor, task
 from twisted.python.filepath import FilePath
 
+from .Config import ConfigClass
 from .model import Alert, Severity
 from .utils import current_timestamp, default_errback, noop_deferred
 
@@ -12,7 +13,9 @@ FILENAME_TIME_FORMAT = "%Y-%m-%d-%H%MZ"
 
 @attr.s
 class IncidentManager(object):
+    global_config: ConfigClass = attr.ib()
     path: FilePath = attr.ib()
+    timestamp: str = attr.ib(default="")
 
     last_alert: str = attr.ib(default="")
     active_alerts: Dict[str, Alert] = attr.ib(factory=dict)
@@ -30,6 +33,28 @@ class IncidentManager(object):
     _monitoring_grace_period: int = attr.ib(default=60 * 30)
     #       Defaulting to 5m as alertmanager
     _alert_resolve_timeout: int = attr.ib(default=5 * 60)
+
+    def __attrs_post_init__(self) -> None:
+        if not self.path.isdir():
+            self.path.createDirectory()
+
+        timestamp_file = self.path.child("timestamp")
+
+        if not self.timestamp:
+            if timestamp_file.isfile():
+                # The file exists already, read it
+                self.timestamp = timestamp_file.getContent().decode("utf-8")
+            else:
+                # Get timestamp implicitly from path, this is likely a new incident
+                #
+                # We don't always rely on this, to allow for incident
+                # re-naming later on.
+                self.timestamp = self.path.basename()
+
+        if not timestamp_file.isfile():
+            # Persist the timestamp file if necessary
+            timestamp_file.setContent(self.timestamp.encode("utf-8"))
+            timestamp_file.chmod(0o644)
 
     def process_heartbeats(self, heartbeats: Iterable[Alert], timestamp: str) -> None:
         if heartbeats:

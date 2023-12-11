@@ -16,7 +16,7 @@ application = service.Application("AdlerManager")
 serv_collection = service.IServiceCollection(application)
 
 # TokenResource
-sites_manager = SitesManager()
+sites_manager = SitesManager(global_config=Config)
 
 resource = web_root(sites_manager)
 site = server.Site(resource)

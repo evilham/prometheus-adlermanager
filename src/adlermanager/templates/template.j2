@@ -42,7 +42,7 @@
     </h4>
   </div>
   <div class="">
-{% for service in site.service_managers %}
+{% for _, service in site.service_managers.items() %}
     <div class="card mb-3 mt-5">
       <h5 class="card-header">
         <span class="badge badge-pill badge-{{ service.status.css }}">&nbsp;</span>
