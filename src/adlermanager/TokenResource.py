@@ -1,9 +1,12 @@
 from typing import Any, Dict, Generator, Union, cast
 
 from twisted.internet import defer
+from twisted.logger import Logger
 from twisted.web import resource, server
 from twisted.web._responses import INTERNAL_SERVER_ERROR, OK, UNAUTHORIZED
 from twisted.web.server import Request
+
+log = Logger()
 
 
 class TokenResource(resource.Resource):
@@ -78,9 +81,8 @@ class TokenResource(resource.Resource):
             res = yield defer.maybeDeferred(self.processToken, token_data, request)
             code: int = cast(int, res)
         except Exception:
-            import traceback
+            log.failure("Unknown error")
 
-            traceback.print_stack()
             code = INTERNAL_SERVER_ERROR
         request.setResponseCode(code)  # type: ignore
         defer.returnValue(code)

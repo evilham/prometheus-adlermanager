@@ -70,10 +70,14 @@ And give yourself access to the given site, by adding your username to its
 
 ### Running
 
-To run the server for development you can use the following command:
+To run the server for development you can one of the following commands:
 
 ```sh
+# Using twistd
+# https://docs.twisted.org/en/stable/core/howto/basics.html#twistd
 pipenv run twistd -ny app.py
+# Running as a module
+python -m adlermanager
 ```
 
 And for deployment, you can use [`twistd`][twistd] itself to run the process

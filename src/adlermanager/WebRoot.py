@@ -15,6 +15,8 @@ from .AdlerManagerTokenResource import AdlerManagerTokenResource
 from .Config import Config
 from .SitesManager import SiteManager, SitesManager
 
+log = Logger()
+
 
 def get_jinja_env(supportDir: str) -> jinja2.Environment:
     """
@@ -52,7 +54,6 @@ def get_jinja_env(supportDir: str) -> jinja2.Environment:
 
 def web_root(sites_manager: "SitesManager") -> KleinResource:
     app = Klein()
-    log = Logger()
 
     @app.route("/")  # type: ignore
     def index(request: Request):
@@ -70,9 +71,6 @@ def web_root(sites_manager: "SitesManager") -> KleinResource:
         try:
             site = sites_manager.site_managers[host]
         except Exception:
-            import traceback
-
-            traceback.print_stack()
             log.failure("sad cat")
             return resource.ErrorPage(
                 500, "Sad cat", '<a href="http://http.cat/500">http://http.cat/500</a>'

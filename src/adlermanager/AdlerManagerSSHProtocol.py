@@ -1,9 +1,9 @@
 import functools
-import json
 from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 import attr
 import yaml
+from twisted.logger import Logger
 from twisted.python.filepath import FilePath
 
 from .conch_helpers import SSHSimpleAvatar, SSHSimpleProtocol
@@ -11,6 +11,8 @@ from .model import SiteConfig
 
 if TYPE_CHECKING:
     from adlermanager.SitesManager import SiteManager, SitesManager
+
+log = Logger()
 
 
 class AdlerManagerSSHProtocol(SSHSimpleProtocol):
@@ -21,8 +23,7 @@ class AdlerManagerSSHProtocol(SSHSimpleProtocol):
         Create an instance of AdlerManagerSSHProtocol.
         """
         SSHSimpleProtocol.__init__(self, user)
-
-        # TODO: Do stuff like getting user sites, showing alert warnings, etc.
+        log.info("SSH login for {user}", user=user.username)
 
     def do_list_sites(self) -> None:
         """
@@ -95,21 +96,12 @@ class AdlerManagerSSHProtocol(SSHSimpleProtocol):
             sm.site_config = sc
             sm.config_file.setContent(sc.to_YAML().encode("utf-8"))
             sm.config_file.chmod(0o640)
+            log.info(
+                "User {user} changed {site} config", user=self.user.username, site=site
+            )
             if self.interactive:
                 self.terminal_write("Persisted SiteConfiguration")
                 self.terminal.nextLine()
-
-    def do_tmp_dump_state(self) -> None:
-        """
-        This command is temporary and just dumps all known state.
-        """
-        for k, sm in self.sites_manager.get_user_sites(self.user.username).items():
-            self.terminal_write(f"\n#\n# {k}\n#\n")
-            for _, srv in sm.service_managers.items():
-                self.terminal_write(f"## {srv.label}\n")
-                self.terminal_write(json.dumps(srv.components))
-                self.terminal.nextLine()
-        self.terminal.nextLine()
 
     @functools.lru_cache()  # we don't need to re-read every time
     def motd(self) -> Union[str, bytes]:

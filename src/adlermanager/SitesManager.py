@@ -17,10 +17,20 @@ class SitesManager(object):
     global_config: ConfigClass = attr.ib()
     site_managers: Dict[str, "SiteManager"] = attr.ib(factory=dict)
     tokens: Dict[str, "SiteManager"] = attr.ib(factory=dict)
-
-    log = Logger()
+    log: Logger = attr.ib(factory=Logger)
 
     def __attrs_post_init__(self) -> None:
+        def startup_message() -> None:
+            self.log.info(
+                f"Starting server with this configuration:\n{self.global_config}",
+                system=SitesManager.__name__,
+            )
+
+        # Inform people of current configuration when reactor starts
+        _ = task.deferLater(reactor, 0, startup_message).addErrback(  # type: ignore
+            default_errback
+        )
+        # Load data
         self.reload()
 
     def reload(self) -> "SitesManager":
@@ -79,7 +89,6 @@ class SiteManager(object):
     path: FilePath = attr.ib()
     tokens: List[str] = attr.ib(factory=list)
     ssh_users: List[str] = attr.ib(factory=list)
-    log = Logger()
     monitoring_is_down: bool = attr.ib(default=False)
     definition: Dict[str, Any] = attr.ib(factory=dict)
     title: str = attr.ib(default="")
@@ -92,10 +101,12 @@ class SiteManager(object):
     #       Default to 2 mins
     _timeout_seconds = 2 * 60
 
-    def __attrs_post_init__(self) -> None:
-        self.reload(first_run=True)
+    log: Logger = attr.ib(factory=Logger)
 
-    def reload(self, first_run: bool = False) -> "SiteManager":
+    def __attrs_post_init__(self) -> None:
+        self.reload()
+
+    def reload(self) -> "SiteManager":
         self.load_definition()
         self.title = self.definition["title"]
         self.load_tokens()
