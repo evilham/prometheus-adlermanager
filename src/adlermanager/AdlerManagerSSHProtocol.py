@@ -1,9 +1,10 @@
 import functools
 import json
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 import attr
 import yaml
+from twisted.python.filepath import FilePath
 
 from .conch_helpers import SSHSimpleAvatar, SSHSimpleProtocol
 from .model import SiteConfig
@@ -111,6 +112,11 @@ class AdlerManagerSSHProtocol(SSHSimpleProtocol):
         self.terminal.nextLine()
 
     @functools.lru_cache()  # we don't need to re-read every time
-    def motd(self) -> str:
-        # TODO: Use data location?
-        return open("motd.txt").read()
+    def motd(self) -> Union[str, bytes]:
+        custom_motd = FilePath(self.sites_manager.global_config.data_dir).child(
+            "motd.txt"
+        )
+        if custom_motd.isfile():
+            return custom_motd.getContent()
+        # Default motd
+        return FilePath(__file__).parent().child("motd.txt").getContent()

@@ -301,7 +301,7 @@ class SSHSimpleProtocol(recvline.HistoricRecvLine):
         """
         self.exitWithCode(0)
 
-    def motd(self) -> str:
+    def motd(self) -> Union[str, bytes]:
         return ""
 
 
