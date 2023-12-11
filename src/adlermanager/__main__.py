@@ -43,7 +43,7 @@ if Config.ssh_enabled:
     i.setServiceParent(serv_collection)  # type: ignore
 
 
-if __name__ == "__main__":
+def run():
     import sys
 
     from twisted import logger
@@ -65,3 +65,7 @@ if __name__ == "__main__":
 
     # Finally, start the reactor
     reactor.run()
+
+
+if __name__ == "__main__":
+    run()

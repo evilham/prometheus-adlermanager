@@ -1,11 +1,3 @@
-from .AdlerManagerSSHProtocol import AdlerManagerSSHProtocol
-from .Config import Config
-from .SitesManager import SitesManager
-from .WebRoot import web_root
+from adlermanager._version import __version__ as version
 
-__all__ = [
-    "AdlerManagerSSHProtocol",
-    "Config",
-    "SitesManager",
-    "web_root",
-]
+__version__ = version.short()

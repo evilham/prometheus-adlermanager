@@ -24,6 +24,8 @@ types-markdown = "*"
 types-pyyaml = "*"
 mypy-zope = "*"
 black = "*"
+hatchling = "*"
+hatch-fancy-pypi-readme = "*"
 
 [pipenv]
 allow_prereleases = true

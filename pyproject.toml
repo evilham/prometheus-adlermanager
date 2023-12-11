@@ -1,3 +1,113 @@
+[build-system]
+requires = [
+    "hatchling >= 1.10.0",
+    "hatch-fancy-pypi-readme >= 22.5.0",
+    "incremental >= 22.10.0",
+]
+build-backend = "hatchling.build"
+
+[project]
+name = "adlermanager"
+dynamic = [
+    "version",
+    "readme",
+]
+description = "A self-hostable status webpage that uses Prometheus alerts to create and maintain service status and incident tracking / customer information flow."
+license = { text = "MIT License" }
+# When updating this value, make sure our CI matrix includes a matching minimum version.
+requires-python = ">=3.8.0"
+authors = [
+    { name = "Evilham", email = "cvs@evilham.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "Twisted[conch] >= 22.0.0",
+    "attrs >= 21.3.0",
+    "pyyaml >= 6.0.0",
+    "klein >= 22.0.0",
+    "jinja2 >= 3.1.0",
+    "markdown >= 3.5.0",
+]
+
+[project.scripts]
+adlermanager = "adlermanager.__main__:run"
+
+[project.urls]
+Changelog = "https://farga.exo.cat/exo/prometheus-adlermanager/commits/branch/main"
+Documentation = "https://farga.exo.cat/exo/prometheus-adlermanager/"
+Homepage = "https://farga.exo.cat/exo/prometheus-adlermanager/"
+Issues = "https://farga.exo.cat/exo/prometheus-adlermanager/issues"
+Source = "https://farga.exo.cat/exo/prometheus-adlermanager/"
+
+[tool.hatch.metadata]
+# This is here to enable backward compatible extra dependencies
+# that are defined using underscores.
+allow-ambiguous-features = true
+
+[tool.hatch.version]
+source = "code"
+path = "src/adlermanager/__init__.py"
+search-paths = ["src"]
+
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+fragments = [
+    { path = "README.md" },
+]
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+# Munge links of the form `NEWS <NEWS.rst>`_ to point at the appropriate
+# location on GitHub so that they function when the long description is
+# displayed on PyPI.
+pattern = '`([^`]+)\s+<(?!https?://)([^>]+)>`_'
+replacement = '`\1 <https://farga.eXO.cat/exo/adlermanager/src/branch/main/\2>`_'
+ignore-case = true
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "src/adlermanager",
+]
+exclude = [
+    "*.pxi",
+    "*.pyx",
+    "build.bat",
+]
+
+[tool.hatch.build.targets.sdist]
+# This dictates what goes into a sdist tarball.
+# As a release tarball, we want to include:
+#  - All of the library code.
+#  - All the useful documentation (but not the super historic stuff)
+#  - All of the test files, so that the tests can be run on an installed copy.
+# We do not want to include:
+#  - Release management files (e.g. topfiles)
+#  - Things only useful when running from a source checkout
+include = [
+    # Documentation
+#    "/docs",
+
+    # Library code
+    "/src",
+#    "/CONTRIBUTING.md",
+#    "/INSTALL.rst",
+#    "/NEWS.rst",
+    "/README.md",
+#    "/code_of_conduct.md",
+
+    # Test-running utilities for downstream packagers
+#    "/.coveragerc",
+    "/mypy.ini",
+#    "/tox.ini",
+]
+
 [tool.black]
 target-version = ['py39']
 
@@ -11,6 +121,21 @@ known_zope = "zope"
 known_openssl = "OpenSSL"
 combine_as_imports = true
 #skip = "src/twisted/logger/__init__.py,src/twisted/internet/reactor.py"
+
+[tool.mypy]
+namespace_packages = true
+plugins = ["mypy_zope:plugin"]
+#TODO: progress so we can enable this
+#strict=true
+check_untyped_defs=true
+disallow_untyped_defs=true
+warn_redundant_casts=true
+warn_unused_configs= true
+warn_unused_ignores = false
+warn_no_return=true
+warn_return_any=true
+warn_unreachable=true
+enable_error_code = ["unused-awaitable"]
 
 [tool.pyright]
 include = ["src"]
