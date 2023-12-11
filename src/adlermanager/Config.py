@@ -81,11 +81,26 @@ class ConfigClass(object):
     """
 
     # Alerts processing
-    new_incident_timeout: timedelta = attr.ib(
-        default=timedelta(minutes=int(os.getenv("NEW_INCIDENT_TIMEOUT", "60")))
+    alert_resolve_minutes: timedelta = attr.ib(
+        default=timedelta(minutes=int(os.getenv("ALERT_RESOLVE_MINUTES", "5")))
     )
     """
-    @param new_incident_timeout: Environment: NEW_INCIDENT_TIMEOUT.
+    @param alert_resolve_minutes: Environment: ALERT_RESOLVE_MINUTES.
+           Prometheus keeps sending alerts periodically as long as it is aware
+           of them, and when it determines they have been resolved, it too
+           sends us that information.
+           However, under certain circumstances, an alert may be raised and it
+           can just stop being sent.
+           This variable marks how long we should remember such alerts that
+           stop arriving but are not explicitly marked as resolved.
+           Default value: 5 (minutes), as AlertManager
+    """
+
+    group_incidents_minutes: timedelta = attr.ib(
+        default=timedelta(minutes=int(os.getenv("GROUP_INCIDENTS_MINUTES", "60")))
+    )
+    """
+    @param group_incidents_minutes: Environment: GROUP_INCIDENTS_MINUTES.
            Alerts incoming at roughly the same time are grouped into incidents.
            Use this to configure the timeout after which alerts will be
            considered separate incidents, in minutes.
@@ -93,6 +108,41 @@ class ConfigClass(object):
            09:20, 09:40, and 11:00, then the first 3 will be the same incident and
            the last one will begin a new incident.
            Default value: 60 (i.e. 1 hour).
+    """
+
+    monitoring_down_minutes: timedelta = attr.ib(
+        default=timedelta(minutes=int(os.getenv("MONITORING_DOWN_MINUTES", "2")))
+    )
+    """
+    @param monitoring_down_minutes: Environment: MONITORING_DOWN_MINUTES.
+           We expect prometheus to get in touch with AdlerManager periodically.
+           In order to achieve this, a special rule should be created (and
+           silenced in AlertManager!), which acts as a "Heartbeat" signal.
+           If we do not do this, monitoring may be down and we'll never get
+           see that.
+           The rule should look like this:
+
+           # groups:
+           # - name: "AdlerManager at example.org"
+           # interval: 30s
+           # rules:
+           # - alert: "AdlerManager: Everything is fine"
+           #     # This expression should always be true.
+           #     # A neat trick is using the job that gathers prometheus metrics
+           #     expr: up{job="prometheus"} == 1
+           #     labels:
+           #         # This must match the sitename in AdlerManager
+           #         adlermanager: "example.org"
+           #         # This must be set
+           #         heartbeat: True
+           #         # This is optional, but it is nice to have
+           #         severity: OK
+
+
+           This variable determines how long we can go without having contact
+           from Prometheus. When this time is exceeded, AdlerManager will
+           fallback to a "Monitoring is Down" state.
+           Default value: 2 (minutes)
     """
 
 

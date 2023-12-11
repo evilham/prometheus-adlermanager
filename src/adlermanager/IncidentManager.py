@@ -27,12 +27,13 @@ class IncidentManager(object):
 
     _monitoring_down: bool = attr.ib(default=False)
 
-    # _logs = attr.ib(factory=list)
-    # TODO: Get IncidentClosing timeout from settings?
-    #       Defaulting to 30m
-    _monitoring_grace_period: int = attr.ib(default=60 * 30)
-    #       Defaulting to 5m as alertmanager
-    _alert_resolve_timeout: int = attr.ib(default=5 * 60)
+    @property
+    def incident_grouping_seconds(self) -> float:
+        return self.global_config.group_incidents_minutes.total_seconds()
+
+    @property
+    def alert_resolve_seconds(self) -> float:
+        return self.global_config.alert_resolve_minutes.total_seconds()
 
     def __attrs_post_init__(self) -> None:
         if not self.path.isdir():
@@ -63,7 +64,9 @@ class IncidentManager(object):
                 self._monitoring_down = False
                 # Monitoring is back up, re-activate timeout
                 self._timeout = task.deferLater(
-                    reactor, self._monitoring_grace_period, self._expire  # type: ignore
+                    reactor,  # type: ignore
+                    self.incident_grouping_seconds,
+                    self._expire,
                 )
                 self.log_event("[Meta]MonitoringUp", timestamp)
 
@@ -71,7 +74,7 @@ class IncidentManager(object):
         if alerts:
             self._timeout.cancel()
             self._timeout = task.deferLater(
-                reactor, self._monitoring_grace_period, self._expire  # type: ignore
+                reactor, self.incident_grouping_seconds, self._expire  # type: ignore
             ).addErrback(default_errback)
             self.last_alert = timestamp
 
@@ -92,7 +95,7 @@ class IncidentManager(object):
                 self.active_alerts[alert_label] = alert
             self._alert_timeouts[alert_label] = task.deferLater(
                 reactor,  # type: ignore
-                self._alert_resolve_timeout,
+                self.alert_resolve_seconds,
                 self._expire_alert,
                 alert_label,
             ).addErrback(default_errback)

@@ -97,9 +97,10 @@ class SiteManager(object):
 
     _timeout: defer.Deferred[None] = attr.ib(factory=noop_deferred)
     site_name: str = attr.ib(default="")
-    # TODO: Get monitoring timeout from config
-    #       Default to 2 mins
-    _timeout_seconds = 2 * 60
+
+    @property
+    def monitoring_down_seconds(self) -> float:
+        return self.global_config.monitoring_down_minutes.total_seconds()
 
     log: Logger = attr.ib(factory=Logger)
 
@@ -135,7 +136,7 @@ class SiteManager(object):
         # Add/reset monitoring timeout
         self._timeout.cancel()
         self._timeout = task.deferLater(
-            reactor, self._timeout_seconds, self.monitoring_down  # type: ignore
+            reactor, self.monitoring_down_seconds, self.monitoring_down  # type: ignore
         ).addErrback(default_errback)
         return self
 
@@ -177,7 +178,7 @@ class SiteManager(object):
         self.monitoring_is_down = False
         self._timeout.cancel()
         self._timeout = task.deferLater(
-            reactor, self._timeout_seconds, self.monitoring_down  # type: ignore
+            reactor, self.monitoring_down_seconds, self.monitoring_down  # type: ignore
         ).addErrback(default_errback)
 
         # Filter alerts for this site
@@ -228,7 +229,6 @@ class ServiceManager(object):
             self.definition.clear()
             self.definition.update(definition)
         self.label = self.definition["label"]
-        # TODO: Recover status after server restart
         self.component_labels.clear()
         self.component_labels.extend(
             [
